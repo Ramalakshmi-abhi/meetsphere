@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import api from '../api';
 import { X, Calendar, Clock, Users, Send } from 'lucide-react';
 import './SchedulerModal.css';
 
@@ -13,14 +13,11 @@ export default function SchedulerModal({ closeModal }) {
         e.preventDefault();
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
             const participantList = participants.split(',').map(p => p.trim()).filter(p => p);
-            await axios.post('/api/meeting/schedule', {
+            await api.post('/api/meeting/schedule', {
                 title,
                 startTime,
                 participants: participantList
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
             alert('Meeting scheduled and invitations sent!');
             closeModal();

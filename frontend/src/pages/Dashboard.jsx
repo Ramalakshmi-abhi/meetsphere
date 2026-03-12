@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Video, Plus, Calendar, Settings, LogOut } from 'lucide-react';
-import axios from 'axios';
+import api from '../api';
 import { useNavigate } from 'react-router-dom';
 import SchedulerModal from '../components/SchedulerModal';
 import './Dashboard.css';
@@ -16,10 +16,7 @@ export default function Dashboard() {
     React.useEffect(() => {
         const fetchMeetings = async () => {
             try {
-                const token = localStorage.getItem('token');
-                const res = await axios.get('/api/meeting/my-meetings', {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const res = await api.get('/api/meeting/my-meetings');
                 setMeetings(res.data);
             } catch (err) {
                 console.error(err);

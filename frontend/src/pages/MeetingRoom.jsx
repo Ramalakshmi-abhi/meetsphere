@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
+import { BASE_URL } from '../api';
 import Peer from 'simple-peer';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, ScreenShare, MoreVertical, MessageSquare, Users, Circle, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -8,7 +9,7 @@ import ChatPanel from '../components/ChatPanel';
 import './MeetingRoom.css';
 import './ParticipantPanel.css';
 
-const socket = io(import.meta.env.VITE_BACKEND_URL || window.location.origin, { 
+const socket = io(BASE_URL || window.location.origin, { 
     path: '/socket.io',
     transports: ['polling', 'websocket'],
     secure: true
