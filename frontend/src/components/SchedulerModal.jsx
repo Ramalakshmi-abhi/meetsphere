@@ -14,9 +14,13 @@ export default function SchedulerModal({ closeModal }) {
         setLoading(true);
         try {
             const participantList = participants.split(',').map(p => p.trim()).filter(p => p);
+            
+            // Convert local time to ISO string to include timezone info
+            const isoStartTime = startTime ? new Date(startTime).toISOString() : new Date().toISOString();
+
             await api.post('/api/meeting/schedule', {
-                title,
-                startTime,
+                title: title || 'Scheduled Meeting',
+                startTime: isoStartTime,
                 participants: participantList
             });
             alert('Meeting scheduled and invitations sent!');

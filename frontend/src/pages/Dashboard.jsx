@@ -25,9 +25,20 @@ export default function Dashboard() {
         fetchMeetings();
     }, []);
 
-    const createMeeting = () => {
-        const id = Math.random().toString(36).substring(2, 10);
-        navigate(`/room/${id}`);
+    const createMeeting = async () => {
+        try {
+            const res = await api.post('/api/meeting/schedule', {
+                title: 'Instant Meeting',
+                startTime: new Date().toISOString(),
+                participants: []
+            });
+            navigate(`/room/${res.data.meetingId}`);
+        } catch (err) {
+            console.error(err);
+            // Fallback to random ID if API fails
+            const id = Math.random().toString(36).substring(2, 10);
+            navigate(`/room/${id}`);
+        }
     };
 
     const joinMeeting = () => {

@@ -41,6 +41,18 @@ exports.getMeetings = async (req, res) => {
         const meetings = await Meeting.find({ host: req.user._id }).sort({ startTime: 1 });
         res.send(meetings);
     } catch (e) {
-        res.status(400).send(e);
+        console.error('[Meeting] Fetch error:', e.message);
+        res.status(400).send({ error: e.message });
+    }
+};
+
+exports.getMeeting = async (req, res) => {
+    try {
+        const meeting = await Meeting.findOne({ meetingId: req.params.meetingId });
+        if (!meeting) return res.status(404).send({ error: 'Meeting not found' });
+        res.send(meeting);
+    } catch (e) {
+        console.error('[Meeting] Fetch single error:', e.message);
+        res.status(400).send({ error: e.message });
     }
 };

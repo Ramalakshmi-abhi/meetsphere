@@ -28,6 +28,7 @@ export default function MeetingRoom() {
     const [showChat, setShowChat] = useState(false);
     const [showParticipants, setShowParticipants] = useState(false);
     const [recording, setRecording] = useState(false);
+    const [meetingTitle, setMeetingTitle] = useState('Meeting');
     
     const userVideo = useRef();
     const peersRef = useRef([]);
@@ -81,6 +82,17 @@ export default function MeetingRoom() {
                 setPeers(peers);
             });
         });
+
+        // Fetch meeting details
+        const fetchMeetingDetails = async () => {
+            try {
+                const res = await api.get(`/api/meeting/${roomId}`);
+                setMeetingTitle(res.data.title);
+            } catch (err) {
+                console.error('Error fetching meeting details:', err);
+            }
+        };
+        fetchMeetingDetails();
 
         return () => {
             socket.disconnect();
@@ -259,7 +271,8 @@ export default function MeetingRoom() {
                 
                 <footer className="meeting-controls">
                     <div className="left-controls">
-                        <span className="meeting-id">Meeting ID: {roomId}</span>
+                        <span className="meeting-title">{meetingTitle}</span>
+                        <span className="meeting-id">ID: {roomId}</span>
                     </div>
                     <div className="center-controls">
                         <button onClick={toggleMic} className={micOn ? '' : 'off'}>
