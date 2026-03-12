@@ -84,6 +84,21 @@ app.get('/api/health', async (req, res) => {
     });
 });
 
+// Email Diagnostic Route
+const { sendInvitation } = require('./config/email');
+app.get('/api/health/email', async (req, res) => {
+    try {
+        const result = await sendInvitation(process.env.EMAIL_USER, 'test-id', 'Test-Host');
+        res.send({ 
+            success: result.success, 
+            message: result.success ? 'Test email sent to yourself!' : 'Failed to send test email',
+            error: result.error ? result.error.message : null
+        });
+    } catch (e) {
+        res.status(500).send({ error: e.message });
+    }
+});
+
 const users = {};
 const socketToRoom = {};
 
