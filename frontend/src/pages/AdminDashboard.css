@@ -1,0 +1,93 @@
+.admin-dashboard {
+    padding: 3rem 6rem;
+    background: var(--bg-dark);
+    min-height: 100vh;
+}
+
+.admin-header {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+    margin-bottom: 4rem;
+}
+
+.back-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2rem;
+    margin-bottom: 4rem;
+}
+
+.stat-card.premium {
+    background: var(--bg-card);
+    padding: 2rem;
+    border-radius: 1.5rem;
+    border: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    transition: transform 0.3s;
+}
+
+.stat-card.premium:hover {
+    transform: translateY(-5px);
+    border-color: var(--primary);
+}
+
+.stat-card svg {
+    color: var(--primary);
+}
+
+.stat-info h3 {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin-bottom: 0.25rem;
+}
+
+.large {
+    font-size: 2rem;
+    font-weight: 800;
+    color: white;
+}
+
+.logs-section h2 {
+    margin-bottom: 2rem;
+    font-size: 1.5rem;
+}
+
+.logs-container {
+    background: #000;
+    border-radius: 1rem;
+    padding: 2rem;
+    border: 1px solid var(--glass-border);
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.log-item {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #111;
+    display: flex;
+    gap: 2rem;
+    font-family: 'Courier New', Courier, monospace;
+}
+
+.timestamp {
+    color: var(--primary);
+    font-weight: 700;
+}
+
+.event {
+    color: var(--text-muted);
+}

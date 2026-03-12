@@ -1,0 +1,133 @@
+.meeting-container {
+    height: 100vh;
+    background: #000;
+    display: flex;
+    overflow: hidden;
+}
+
+.main-layout {
+    flex-direction: row;
+}
+
+.meeting-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.video-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 1rem;
+    padding: 1rem;
+    align-content: center;
+}
+
+.video-card {
+    background: #1e293b;
+    border-radius: 1rem;
+    overflow: hidden;
+    position: relative;
+    aspect-ratio: 16/9;
+}
+
+.video-card video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.video-label {
+    position: absolute;
+    bottom: 1rem;
+    left: 1rem;
+    background: rgba(0,0,0,0.5);
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.sharing-badge {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: var(--primary);
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.center-controls button.active {
+    color: var(--primary);
+    background: rgba(99, 102, 241, 0.2);
+}
+
+.meeting-controls {
+    height: 80px;
+    background: #111;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2rem;
+}
+
+.center-controls {
+    display: flex;
+    gap: 1rem;
+}
+
+.center-controls button {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: none;
+    background: #2d2d2d;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.center-controls button:hover {
+    background: #444;
+}
+
+.center-controls button.off {
+    background: var(--error);
+}
+
+.center-controls button.end-call {
+    background: var(--error);
+    width: 64px;
+}
+
+.end-call:hover {
+    background: #dc2626;
+}
+
+.meeting-id {
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.right-controls {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.right-controls button {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    padding: 0.5rem;
+    cursor: pointer;
+    border-radius: 0.5rem;
+}
+
+.right-controls button:hover {
+    background: #222;
+}
