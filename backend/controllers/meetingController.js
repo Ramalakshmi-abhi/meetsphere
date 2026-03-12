@@ -6,6 +6,8 @@ exports.scheduleMeeting = async (req, res) => {
         const { title, startTime, participants } = req.body;
         const meetingId = Math.random().toString(36).substring(2, 10);
         
+        console.log(`[Meeting] Scheduling meeting: ${title} (${meetingId}) for user ${req.user.name}`);
+
         const meeting = new Meeting({
             meetingId,
             title,
@@ -14,19 +16,23 @@ exports.scheduleMeeting = async (req, res) => {
         });
 
         await meeting.save();
+        console.log(`[Meeting] Meeting saved to DB: ${meetingId}`);
 
+        // Send invitations in the background so we don't hang the response
         if (participants && participants.length > 0) {
-            console.log('Sending invitations to:', participants);
-            const invitationPromises = participants.map(email => 
+            console.log(`[Meeting] Sending invitations to: ${participants.join(', ')}`);
+            // We don't await this so the user gets a response immediately
+            participants.forEach(email => {
                 sendInvitation(email, meetingId, req.user.name)
-            );
-            const results = await Promise.all(invitationPromises);
-            console.log('Email delivery results:', results);
+                    .then(res => console.log(`[Email] Invitation sent to ${email}:`, res.success))
+                    .catch(err => console.error(`[Email] Failed to send to ${email}:`, err));
+            });
         }
 
         res.status(201).send(meeting);
     } catch (e) {
-        res.status(400).send(e);
+        console.error('[Meeting] Scheduling error:', e.message);
+        res.status(400).send({ error: e.message });
     }
 };
 
