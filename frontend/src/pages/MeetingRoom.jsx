@@ -503,6 +503,13 @@ const VideoComponent = ({ peer }) => {
     const ref = useRef();
 
     useEffect(() => {
+        // Handle pre-existing streams explicitly (React race condition fix)
+        if (peer.streams && peer.streams.length > 0) {
+            ref.current.srcObject = peer.streams[0];
+        } else if (peer._remoteStreams && peer._remoteStreams.length > 0) {
+            ref.current.srcObject = peer._remoteStreams[0];
+        }
+
         peer.on('stream', stream => {
             ref.current.srcObject = stream;
         });
