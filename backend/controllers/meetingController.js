@@ -35,11 +35,15 @@ exports.scheduleMeeting = async (req, res) => {
         if (participants && participants.length > 0) {
             console.log(`[Meeting] Sending invitations to: ${participants.join(', ')}`);
             
-            await Promise.all(participants.map(email => 
-                sendInvitation(email, meetingId, req.user.name)
-            ));
+            await Promise.all(participants.map(async (email) => {
+                const res = await sendInvitation(email, meetingId, req.user.name);
+                if (!res.success) {
+                    console.error(`[Email Failed] to ${email}:`, res.error);
+                    throw new Error(`Failed to send email to ${email}: ${res.error?.message || 'Unknown SMTP error'}`);
+                }
+            }));
             
-            console.log(`[Meeting] All email dispatches completed`);
+            console.log(`[Meeting] All email dispatches completed successfully`);
         }
 
         res.status(201).send(meeting);
