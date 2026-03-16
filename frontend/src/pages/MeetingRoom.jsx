@@ -16,9 +16,9 @@ const WhatsAppIcon = () => (
     </svg>
 );
 
-const socket = io(BASE_URL || window.location.origin, { 
+const socket = io('https://meetsphere-production.up.railway.app', { 
     path: '/socket.io',
-    transports: ['polling'],
+    transports: ['polling', 'websocket'],
     secure: true,
     reconnection: true,
     reconnectionAttempts: 20,
