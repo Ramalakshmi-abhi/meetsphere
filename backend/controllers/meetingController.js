@@ -30,19 +30,16 @@ exports.scheduleMeeting = async (req, res) => {
         await meeting.save();
         console.log(`[Meeting] Meeting saved to DB: ${meetingId}`);
 
-        // Vercel serverless kills background tasks when res is sent. We MUST await the email, 
-        // but we'll cap it at 8 seconds so the API doesn't timeout.
+        // Wait for all emails to physically leave the server before sending the HTTP response.
+        // Vercel immediately freezes the execution environment upon res.send()
         if (participants && participants.length > 0) {
             console.log(`[Meeting] Sending invitations to: ${participants.join(', ')}`);
             
-            const emailPromises = Promise.all(participants.map(email => 
+            await Promise.all(participants.map(email => 
                 sendInvitation(email, meetingId, req.user.name)
             ));
             
-            const timeoutPromise = new Promise(resolve => setTimeout(resolve, 8000));
-            
-            await Promise.race([emailPromises, timeoutPromise]);
-            console.log(`[Meeting] Email dispatch finished or timed out (8s limit)`);
+            console.log(`[Meeting] All email dispatches completed`);
         }
 
         res.status(201).send(meeting);
