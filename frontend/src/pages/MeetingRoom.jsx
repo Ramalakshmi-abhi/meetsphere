@@ -19,7 +19,11 @@ const WhatsAppIcon = () => (
 const socket = io(BASE_URL || window.location.origin, { 
     path: '/socket.io',
     transports: ['websocket'],
-    secure: true
+    secure: true,
+    reconnection: true,
+    reconnectionAttempts: 20,
+    reconnectionDelay: 2000,
+    timeout: 20000
 });
 
 export default function MeetingRoom() {

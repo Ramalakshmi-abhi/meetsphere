@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Video, Plus, Calendar, Settings, LogOut } from 'lucide-react';
-import api from '../api';
+import api, { BASE_URL } from '../api';
 import { useNavigate } from 'react-router-dom';
 import SchedulerModal from '../components/SchedulerModal';
 import './Dashboard.css';
@@ -23,6 +23,13 @@ export default function Dashboard() {
             }
         };
         fetchMeetings();
+
+        // Silently ping the Socket.io WebSocket server to wake it up in the background
+        // since the free tier Railway container goes to sleep after 10m of inactivity
+        try {
+            fetch(`${BASE_URL || window.location.origin}/socket.io/?EIO=4&transport=polling`).catch(() => {});
+        } catch (e) {}
+
     }, []);
 
     const createMeeting = async () => {
