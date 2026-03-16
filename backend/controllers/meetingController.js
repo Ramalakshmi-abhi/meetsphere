@@ -3,8 +3,9 @@ const { sendInvitation } = require('../config/email');
 
 exports.scheduleMeeting = async (req, res) => {
     try {
-        const { title, startTime, participants } = req.body;
-        const meetingId = Math.random().toString(36).substring(2, 10);
+        const { title, startTime, participants, passcode } = req.body;
+        // Check if the passcode is provided, otherwise generate a random meeting ID
+        const meetingId = passcode || Math.random().toString(36).substring(2, 10);
         
         console.log(`[Meeting] Scheduling meeting: ${title} (${meetingId}) for user ${req.user.name}`);
 
@@ -12,6 +13,7 @@ exports.scheduleMeeting = async (req, res) => {
             meetingId,
             title,
             startTime,
+            passcode,
             host: req.user._id,
         });
 
@@ -47,7 +49,12 @@ exports.getMeetings = async (req, res) => {
 
 exports.getMeeting = async (req, res) => {
     try {
-        const meeting = await Meeting.findOne({ meetingId: req.params.meetingId });
+        const meeting = await Meeting.findOne({ 
+            $or: [
+                { meetingId: req.params.meetingId },
+                { passcode: req.params.meetingId }
+            ]
+        });
         if (!meeting) return res.status(404).send({ error: 'Meeting not found' });
         res.send(meeting);
     } catch (e) {

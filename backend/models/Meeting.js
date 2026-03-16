@@ -34,7 +34,7 @@ const meetingSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
-    password: {
+    passcode: {
         type: String
     },
     isRecording: {
