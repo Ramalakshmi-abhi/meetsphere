@@ -4,6 +4,16 @@ const { sendInvitation } = require('../config/email');
 exports.scheduleMeeting = async (req, res) => {
     try {
         const { title, startTime, participants, passcode } = req.body;
+        
+        if (passcode) {
+            const existingMeeting = await Meeting.findOne({
+                $or: [{ meetingId: passcode }, { passcode: passcode }]
+            });
+            if (existingMeeting) {
+                return res.status(400).send({ error: 'This Meeting Passcode is already in use. Please choose a different one.' });
+            }
+        }
+
         // Check if the passcode is provided, otherwise generate a random meeting ID
         const meetingId = passcode || Math.random().toString(36).substring(2, 10);
         
