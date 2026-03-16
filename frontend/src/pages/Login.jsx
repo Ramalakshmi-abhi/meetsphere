@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+
 import { useAuth } from '../context/AuthContext';
 import { Mail, Lock, LogIn, UserPlus } from 'lucide-react';
 import './Auth.css';
@@ -10,12 +11,19 @@ export default function Login() {
     const [error, setError] = useState('');
     const { login } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
+    
+    // Get redirect path from query params
+    const queryParams = new URLSearchParams(location.search);
+    const redirectPath = queryParams.get('redirect') || '/dashboard';
+
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
             await login(email, password);
-            navigate('/dashboard');
+            navigate(redirectPath);
+
         } catch (err) {
             setError(err.response?.data?.error || 'Login failed');
         }

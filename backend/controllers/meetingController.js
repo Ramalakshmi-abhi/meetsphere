@@ -18,21 +18,20 @@ exports.scheduleMeeting = async (req, res) => {
         await meeting.save();
         console.log(`[Meeting] Meeting saved to DB: ${meetingId}`);
 
-        // Send invitations in the background so we don't hang the response
+        // Send invitations and await them to ensure delivery in serverless environments
         if (participants && participants.length > 0) {
             console.log(`[Meeting] Sending invitations to: ${participants.join(', ')}`);
-            // We don't await this so the user gets a response immediately
-            participants.forEach(email => {
+            await Promise.all(participants.map(email => 
                 sendInvitation(email, meetingId, req.user.name)
                     .then(res => console.log(`[Email] Invitation sent to ${email}:`, res.success))
-                    .catch(err => console.error(`[Email] Failed to send to ${email}:`, err));
-            });
+                    .catch(err => console.error(`[Email] Failed to send to ${email}:`, err))
+            ));
         }
 
         res.status(201).send(meeting);
     } catch (e) {
-        console.error('[Meeting] Scheduling error:', e.message);
-        res.status(400).send({ error: e.message });
+        console.error('CRITICAL: [Meeting] Scheduling error:', e);
+        res.status(500).send({ error: e.message || 'Scheduling failed' });
     }
 };
 
@@ -41,8 +40,8 @@ exports.getMeetings = async (req, res) => {
         const meetings = await Meeting.find({ host: req.user._id }).sort({ startTime: 1 });
         res.send(meetings);
     } catch (e) {
-        console.error('[Meeting] Fetch error:', e.message);
-        res.status(400).send({ error: e.message });
+        console.error('CRITICAL: [Meeting] Fetch error:', e);
+        res.status(500).send({ error: e.message || 'Fetch failed' });
     }
 };
 
@@ -52,7 +51,20 @@ exports.getMeeting = async (req, res) => {
         if (!meeting) return res.status(404).send({ error: 'Meeting not found' });
         res.send(meeting);
     } catch (e) {
-        console.error('[Meeting] Fetch single error:', e.message);
-        res.status(400).send({ error: e.message });
+        console.error('CRITICAL: [Meeting] Fetch single error:', e);
+        res.status(500).send({ error: e.message || 'Fetch single failed' });
+    }
+};
+exports.deleteMeeting = async (req, res) => {
+    try {
+        const meeting = await Meeting.findOne({ _id: req.params.id, host: req.user._id });
+        if (!meeting) {
+            return res.status(404).send({ error: 'Meeting not found or you are not authorized to delete it.' });
+        }
+        await Meeting.deleteOne({ _id: req.params.id });
+        res.send({ message: 'Meeting deleted successfully' });
+    } catch (e) {
+        console.error('CRITICAL: [Meeting] Delete error:', e);
+        res.status(500).send({ error: e.message || 'Delete failed' });
     }
 };

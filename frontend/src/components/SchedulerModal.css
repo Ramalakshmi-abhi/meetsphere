@@ -46,3 +46,14 @@
 .modal-content textarea:focus {
     border-color: var(--primary);
 }
+
+.datetime-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.datetime-group .input-group {
+    width: 100%;
+}
+

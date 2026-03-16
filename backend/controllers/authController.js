@@ -16,8 +16,8 @@ exports.register = async (req, res) => {
         const token = jwt.sign({ _id: user._id.toString() }, process.env.JWT_SECRET);
         res.status(201).send({ user, token });
     } catch (e) {
-        console.error('Registration error:', e);
-        res.status(400).send({ error: e.message || 'Registration failed' });
+        console.error('CRITICAL: Registration error:', e);
+        res.status(500).send({ error: e.message || 'Registration failed' });
     }
 };
 
@@ -30,8 +30,8 @@ exports.login = async (req, res) => {
         const token = jwt.sign({ _id: user._id.toString() }, process.env.JWT_SECRET);
         res.send({ user, token });
     } catch (e) {
-        console.error('Login error:', e);
-        res.status(400).send({ error: e.message || 'Login failed' });
+        console.error('CRITICAL: Login error:', e);
+        res.status(500).send({ error: e.message || 'Login failed' });
     }
 };
 

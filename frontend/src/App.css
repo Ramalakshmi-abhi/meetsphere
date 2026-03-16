@@ -1,7 +1,9 @@
 .app-container {
   min-height: 100vh;
+  min-height: 100dvh;
   background-color: #0b0b0b;
   color: white;
+  overflow: visible;
 }
 
 /* Global transitions */

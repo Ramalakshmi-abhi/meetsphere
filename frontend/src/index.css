@@ -1,11 +1,33 @@
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+  /* Modern Color Palette */
+  --primary: #4f46e5;
+  --primary-glow: rgba(79, 70, 229, 0.4);
+  --bg-deep: #050505;
+  --bg-surface: #0f1115;
+  --bg-card: rgba(22, 24, 28, 0.8);
+  
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  
+  --border: rgba(255, 255, 255, 0.08);
+  --border-focus: rgba(79, 70, 229, 0.5);
+  
+  /* Glassmorphism */
+  --glass: rgba(255, 255, 255, 0.03);
+  --glass-stroke: rgba(255, 255, 255, 0.1);
+  --glass-blur: blur(12px);
+  
+  /* Shadows */
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 12px 24px -4px rgba(0, 0, 0, 0.3);
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #0b0b0b;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  line-height: 1.6;
+  font-weight: 400;
+  color: var(--text-main);
+  background-color: var(--bg-deep);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -13,12 +35,18 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-body {
-  margin: 0;
-  display: flex;
-  place-content: center;
-  min-width: 320px;
+html, body {
+  overflow-x: hidden;
+  overflow-y: auto;
   min-height: 100vh;
+  scroll-behavior: smooth;
+  margin: 0;
+}
+
+body {
+  min-width: 320px;
+  background: radial-gradient(circle at 0% 0%, #1e1b4b 0%, #050505 50%);
+  background-attachment: fixed;
 }
 
 #root {
@@ -27,4 +55,15 @@ body {
 
 * {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+button {
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+input {
+  transition: all 0.2s ease;
 }
