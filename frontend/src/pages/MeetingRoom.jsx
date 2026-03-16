@@ -18,7 +18,7 @@ const WhatsAppIcon = () => (
 
 const socket = io(BASE_URL || window.location.origin, { 
     path: '/socket.io',
-    transports: ['websocket'],
+    transports: ['polling'],
     secure: true,
     reconnection: true,
     reconnectionAttempts: 20,
@@ -452,9 +452,9 @@ export default function MeetingRoom() {
 
                         </div>
                         {peers.map(p => (
-                            <div key={p.peerID} className="participant-item">
+                            <div key={p.peerID || Math.random()} className="participant-item">
                                 <div className="avatar small">P</div>
-                                <span>{p.peerID.substring(0, 5)}</span>
+                                <span>{p.peerID ? p.peerID.substring(0, 5) : 'User'}</span>
                                 {isHost && (
                                     <div className="host-controls">
                                         <button onClick={() => muteParticipant(p.peerID)} title="Mute">
