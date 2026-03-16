@@ -137,6 +137,12 @@ export default function MeetingRoom() {
             initiator: true,
             trickle: false,
             stream,
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:global.stun.twilio.com:3478' }
+                ]
+            }
         });
 
         peer.on('signal', signal => {
@@ -151,6 +157,12 @@ export default function MeetingRoom() {
             initiator: false,
             trickle: false,
             stream,
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:global.stun.twilio.com:3478' }
+                ]
+            }
         });
 
         peer.on('signal', signal => {

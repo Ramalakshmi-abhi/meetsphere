@@ -8,7 +8,5 @@ const envBaseUrl = import.meta.env.VITE_BACKEND_URL || '';
 axios.defaults.baseURL = envBaseUrl.endsWith('/') ? envBaseUrl.slice(0, -1) : envBaseUrl;
 
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
     <App />
-  </React.StrictMode>,
 )
