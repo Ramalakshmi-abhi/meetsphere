@@ -20,10 +20,10 @@ exports.scheduleMeeting = async (req, res) => {
         await meeting.save();
         console.log(`[Meeting] Meeting saved to DB: ${meetingId}`);
 
-        // Send invitations and await them to ensure delivery in serverless environments
+        // Send invitations asynchronously to prevent serverless function timeouts
         if (participants && participants.length > 0) {
-            console.log(`[Meeting] Sending invitations to: ${participants.join(', ')}`);
-            await Promise.all(participants.map(email => 
+            console.log(`[Meeting] Sending invitations background to: ${participants.join(', ')}`);
+            Promise.all(participants.map(email => 
                 sendInvitation(email, meetingId, req.user.name)
                     .then(res => console.log(`[Email] Invitation sent to ${email}:`, res.success))
                     .catch(err => console.error(`[Email] Failed to send to ${email}:`, err))

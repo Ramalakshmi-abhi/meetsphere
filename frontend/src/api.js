@@ -1,8 +1,6 @@
 import axios from 'axios';
 
-export const BASE_URL = import.meta.env.VITE_BACKEND_URL && import.meta.env.VITE_BACKEND_URL !== '' 
-    ? import.meta.env.VITE_BACKEND_URL 
-    : 'https://meetsphere-production.up.railway.app';
+export const BASE_URL = import.meta.env.VITE_BACKEND_URL || '';
 
 
 const api = axios.create({
