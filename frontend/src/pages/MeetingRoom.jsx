@@ -42,6 +42,7 @@ export default function MeetingRoom() {
     const [showParticipants, setShowParticipants] = useState(false);
     const [recording, setRecording] = useState(false);
     const [meetingTitle, setMeetingTitle] = useState('Meeting');
+    const [meetingOptions, setMeetingOptions] = useState({});
     const [showShareModal, setShowShareModal] = useState(false);
     const [hasJoined, setHasJoined] = useState(false);
     const [tempGuestName, setTempGuestName] = useState('');
@@ -68,6 +69,9 @@ export default function MeetingRoom() {
                 try {
                     const res = await api.get(`/api/meeting/${roomId}`);
                     setMeetingTitle(res.data.title);
+                    if (res.data.advancedOptions) {
+                        setMeetingOptions(res.data.advancedOptions);
+                    }
                 } catch (err) {
                     console.error('Error fetching meeting details:', err);
                 }
@@ -140,6 +144,19 @@ export default function MeetingRoom() {
         if (!user) {
             setFinalName(tempGuestName);
         }
+
+        // Enforce Mute on Entry
+        if (meetingOptions?.muteOnEntry && stream) {
+            stream.getAudioTracks()[0].enabled = false;
+            setMicOn(false);
+        }
+
+        // Enforce Video Mute on Entry
+        if (meetingOptions?.videoMuteOnEntry && stream) {
+            stream.getVideoTracks()[0].enabled = false;
+            setVideoOn(false);
+        }
+
         setHasJoined(true);
     };
 
@@ -403,7 +420,7 @@ export default function MeetingRoom() {
                         <button onClick={toggleVideo} className={videoOn ? '' : 'off'}>
                             {videoOn ? <Video /> : <VideoOff />}
                         </button>
-                        <button onClick={shareScreen} className={screenStream ? 'active' : ''}>
+                        <button onClick={shareScreen} className={screenStream ? 'active' : ''} disabled={meetingOptions?.disableScreenSharing && !isHost} style={{ opacity: (meetingOptions?.disableScreenSharing && !isHost) ? 0.5 : 1, cursor: (meetingOptions?.disableScreenSharing && !isHost) ? 'not-allowed' : 'pointer' }}>
                             <ScreenShare />
                         </button>
                         <button onClick={toggleRecording} className={recording ? 'active recording' : ''}>

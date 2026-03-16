@@ -37,6 +37,15 @@ const meetingSchema = new mongoose.Schema({
     passcode: {
         type: String
     },
+    advancedOptions: {
+        isRecurring: { type: Boolean, default: false },
+        enableRecording: { type: Boolean, default: true },
+        muteOnEntry: { type: Boolean, default: false },
+        videoMuteOnEntry: { type: Boolean, default: false },
+        disableScreenSharing: { type: Boolean, default: false },
+        enableLivestream: { type: Boolean, default: false },
+        recordingStorage: { type: String, enum: ['Local', 'Dropbox', 'Drive'], default: 'Local' }
+    },
     isRecording: {
         type: Boolean,
         default: false

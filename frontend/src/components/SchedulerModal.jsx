@@ -15,6 +15,13 @@ export default function SchedulerModal({ closeModal }) {
     const [time, setTime] = useState('');
     const [participants, setParticipants] = useState('');
     const [loading, setLoading] = useState(false);
+    const [advancedOptions, setAdvancedOptions] = useState({
+        muteOnEntry: false,
+        videoMuteOnEntry: false,
+        disableScreenSharing: false,
+        enableRecording: true,
+        enableLivestream: false
+    });
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -33,7 +40,8 @@ export default function SchedulerModal({ closeModal }) {
             await api.post('/api/meeting/schedule', {
                 title: title || 'Scheduled Meeting',
                 startTime: isoStartTime,
-                participants: participantList
+                participants: participantList,
+                advancedOptions
             });
             alert('Meeting scheduled and invitations sent!');
             closeModal();
@@ -98,6 +106,31 @@ export default function SchedulerModal({ closeModal }) {
                             onChange={(e) => setParticipants(e.target.value)}
                         />
                     </div>
+                    
+                    <div className="moderator-options" style={{ textAlign: 'left', marginBottom: '1rem', fontSize: '0.9rem', color: '#4b5563' }}>
+                        <h4 style={{ marginBottom: '0.5rem', borderBottom: '1px solid #e5e7eb', paddingBottom: '0.3rem', color: '#1f2937' }}>Moderator Options</h4>
+                        
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={advancedOptions.enableRecording} onChange={(e) => setAdvancedOptions({...advancedOptions, enableRecording: e.target.checked})} /> Enable Recording
+                        </label>
+                        
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={advancedOptions.muteOnEntry} onChange={(e) => setAdvancedOptions({...advancedOptions, muteOnEntry: e.target.checked})} /> Mute On Entry
+                        </label>
+                        
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={advancedOptions.videoMuteOnEntry} onChange={(e) => setAdvancedOptions({...advancedOptions, videoMuteOnEntry: e.target.checked})} /> Video Mute On Entry
+                        </label>
+                        
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={advancedOptions.enableLivestream} onChange={(e) => setAdvancedOptions({...advancedOptions, enableLivestream: e.target.checked})} /> Enable Livestream
+                        </label>
+                        
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={advancedOptions.disableScreenSharing} onChange={(e) => setAdvancedOptions({...advancedOptions, disableScreenSharing: e.target.checked})} /> Disable Screen Sharing
+                        </label>
+                    </div>
+
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <button type="submit" className="auth-btn" disabled={loading}>
                             {loading ? 'Scheduling...' : <><Send size={18} /> Schedule</>}
