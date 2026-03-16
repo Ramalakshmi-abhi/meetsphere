@@ -1,18 +1,11 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-const transporter = nodemailer.createTransport({
-    host: 'smtp.gmail.com',
-    port: 465,
-    secure: true, // Port 465 requires secure: true
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    }
-});
+// Initialize Resend with the provided API key
+const resend = new Resend('re_V49KT2dT_JrmtHCJSVz6kcx1Y7RnPjWhP');
 
 exports.sendInvitation = async (email, meetingId, hostName) => {
     const mailOptions = {
-        from: process.env.EMAIL_USER,
+        from: 'MeetSphere <onboarding@resend.dev>', // Resend free tier requires this specific sender
         to: email,
         subject: `Meeting Invitation: ${hostName} is inviting you to a MeetSphere meeting`,
         html: `
@@ -44,7 +37,14 @@ exports.sendInvitation = async (email, meetingId, hostName) => {
     };
 
     try {
-        await transporter.sendMail(mailOptions);
+        const data = await resend.emails.send(mailOptions);
+        
+        if (data.error) {
+            console.error('Email error:', data.error);
+            return { success: false, error: data.error };
+        }
+
+        console.log(`[Resend] Successfully sent email to ${email}`);
         return { success: true };
     } catch (error) {
         console.error('Email error:', error);
