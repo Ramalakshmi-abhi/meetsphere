@@ -120,6 +120,14 @@ export default function MeetingRoom() {
         };
     }, [roomId, hasJoined]);
 
+    // Continuously ensure the stream is attached to the local video element,
+    // especially after the DOM swaps from the waiting room to the meeting room.
+    useEffect(() => {
+        if (userVideo.current && stream) {
+            userVideo.current.srcObject = stream;
+        }
+    }, [stream, hasJoined]);
+
     const joinMeetingRoom = () => {
         if (!user && !tempGuestName.trim()) {
             alert("Please enter your name to join");
