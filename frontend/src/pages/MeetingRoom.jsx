@@ -18,7 +18,7 @@ const WhatsAppIcon = () => (
 
 const socket = io(BASE_URL || window.location.origin, { 
     path: '/socket.io',
-    transports: ['polling'],
+    transports: ['websocket'],
     secure: true
 });
 
