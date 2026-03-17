@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import io from 'socket.io-client';
 import { BASE_URL } from '../api';
 import api from '../api';
@@ -16,27 +16,33 @@ const WhatsAppIcon = () => (
     </svg>
 );
 
-const socket = io('https://meetsphere-production.up.railway.app', { 
+const socket = io(BASE_URL, { 
     path: '/socket.io',
     transports: ['polling', 'websocket'],
     secure: true,
     reconnection: true,
     reconnectionAttempts: 20,
     reconnectionDelay: 2000,
-    timeout: 20000
+    timeout: 20000,
+    extraHeaders: {
+        'Bypass-Tunnel-Reminder': 'true'
+    }
 });
 
 export default function MeetingRoom() {
     const { roomId } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
+    const initialState = location.state || {};
+
     const { user } = useAuth(); // Note: user might be null for guests
     const userName = user?.name || 'Guest';
 
     
     const [stream, setStream] = useState(null);
     const [peers, setPeers] = useState([]);
-    const [micOn, setMicOn] = useState(true);
-    const [videoOn, setVideoOn] = useState(true);
+    const [micOn, setMicOn] = useState(initialState.mic !== undefined ? initialState.mic : true);
+    const [videoOn, setVideoOn] = useState(initialState.camera !== undefined ? initialState.camera : true);
     const [screenStream, setScreenStream] = useState(null);
     const [showChat, setShowChat] = useState(false);
     const [showParticipants, setShowParticipants] = useState(false);
@@ -56,13 +62,28 @@ export default function MeetingRoom() {
 
     useEffect(() => {
         if (!hasJoined) {
-            // Only get media for preview
-            navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(currentStream => {
-                setStream(currentStream);
-                if (userVideo.current) {
-                    userVideo.current.srcObject = currentStream;
-                }
-            }).catch(err => console.error("Media error:", err));
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(currentStream => {
+                    // Enforce routing state overrides immediately
+                    if (initialState.camera === false && currentStream.getVideoTracks()[0]) {
+                        currentStream.getVideoTracks()[0].enabled = false;
+                    }
+                    if (initialState.mic === false && currentStream.getAudioTracks()[0]) {
+                        currentStream.getAudioTracks()[0].enabled = false;
+                    }
+
+                    setStream(currentStream);
+                    if (userVideo.current) {
+                        userVideo.current.srcObject = currentStream;
+                    }
+                }).catch(err => {
+                    console.error("Media error:", err);
+                    alert("Camera or Microphone access was denied or not found. Please allow permissions in your browser address bar.");
+                });
+            } else {
+                console.error("navigator.mediaDevices is undefined");
+                alert("Camera and Microphone are not supported on this browser context (try using localhost or https).");
+            }
             
             // Still fetch details for the waiting room
             const fetchMeetingDetails = async () => {
@@ -238,20 +259,29 @@ export default function MeetingRoom() {
     };
 
     const toggleMic = () => {
-        if (stream) {
-            stream.getAudioTracks()[0].enabled = !micOn;
-            setMicOn(!micOn);
+        if (!stream) {
+            alert("Microphone is not available. Please check browser permissions.");
+            return;
         }
+        stream.getAudioTracks()[0].enabled = !micOn;
+        setMicOn(!micOn);
     };
 
     const toggleVideo = () => {
-        if (stream) {
-            stream.getVideoTracks()[0].enabled = !videoOn;
-            setVideoOn(!videoOn);
+        if (!stream) {
+            alert("Camera is not available. Please check browser permissions.");
+            return;
         }
+        stream.getVideoTracks()[0].enabled = !videoOn;
+        setVideoOn(!videoOn);
     };
 
     const shareScreen = () => {
+        if (!stream || stream.getVideoTracks().length === 0) {
+            alert("Your camera must be allowed and active before you can share your screen.");
+            return;
+        }
+
         if (!screenStream) {
             navigator.mediaDevices.getDisplayMedia({ cursor: true }).then(screenStream => {
                 const screenTrack = screenStream.getVideoTracks()[0];
@@ -276,6 +306,8 @@ export default function MeetingRoom() {
                 };
 
                 setScreenStream(screenStream);
+            }).catch(err => {
+                console.error("Screen share error:", err);
             });
         } else {
             screenStream.getTracks().forEach(track => track.stop());
@@ -291,6 +323,10 @@ export default function MeetingRoom() {
     };
 
     const toggleRecording = () => {
+        if (!stream) {
+            alert("You cannot record because your camera and microphone are not connected or allowed.");
+            return;
+        }
         if (recording) {
             mediaRecorderRef.current.stop();
             setRecording(false);
@@ -337,8 +373,50 @@ export default function MeetingRoom() {
 
     const shareToWhatsAppRoom = () => {
         const url = `${window.location.origin}/room/${roomId}`;
-        const text = `Join my MeetSphere meeting!\n\nID: ${roomId}\nLink: ${url}`;
+        const now = new Date();
+        const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        const timeOptions = { hour: '2-digit', minute: '2-digit' };
+        
+        const dateString = now.toLocaleDateString(undefined, dateOptions);
+        const timeString = now.toLocaleTimeString(undefined, timeOptions);
+        
+        const text = `Join my MeetSphere meeting!\n\n` +
+                     `Topic: ${meetingTitle}\n` +
+                     `Date: ${dateString}\n` +
+                     `Time: ${timeString}\n` +
+                     `Location: MeetSphere Web\n\n` +
+                     `Meeting ID: ${roomId}\n` +
+                     `Link: ${url}`;
+                     
         window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    };
+
+    const shareViaEmail = () => {
+        const url = `${window.location.origin}/room/${roomId}`;
+        const now = new Date();
+        const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        const timeOptions = { hour: '2-digit', minute: '2-digit' };
+        
+        const dateString = now.toLocaleDateString(undefined, dateOptions);
+        const timeString = now.toLocaleTimeString(undefined, timeOptions);
+        
+        const subject = `Invitation: Join ${meetingTitle} Video Meeting`;
+        const body = `You have been invited to a video meeting on MeetSphere.\n\n` +
+                     `Topic: ${meetingTitle}\n` +
+                     `Date: ${dateString}\n` +
+                     `Time: ${timeString}\n` +
+                     `Location: MeetSphere Web\n\n` +
+                     `Meeting ID: ${roomId}\n\n` +
+                     `Click here to join the meeting: ${url}`;
+        
+        const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        
+        // Use a hidden anchor tag which is more reliable on mobile browsers
+        const a = document.createElement('a');
+        a.href = mailtoLink;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
     };
 
     if (!hasJoined) {
@@ -450,6 +528,7 @@ export default function MeetingRoom() {
                     <h4>Share Meeting</h4>
                     <div className="share-options">
                         <button onClick={copyToClipboard} className="btn-secondary">Copy Link</button>
+                        <button onClick={shareViaEmail} className="btn-secondary">✉️ Email Link</button>
                         <button onClick={shareToWhatsAppRoom} className="btn-whatsapp">
                             <WhatsAppIcon /> Share on WhatsApp
                         </button>
