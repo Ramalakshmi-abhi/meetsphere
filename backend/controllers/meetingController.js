@@ -3,7 +3,7 @@ const { sendInvitation } = require('../config/email');
 
 exports.scheduleMeeting = async (req, res) => {
     try {
-        const { title, startTime, participants, passcode, advancedOptions } = req.body;
+        const { title, startTime, participants, passcode, advancedOptions, isLocked } = req.body;
         
         if (passcode) {
             const existingMeeting = await Meeting.findOne({
@@ -25,6 +25,7 @@ exports.scheduleMeeting = async (req, res) => {
             startTime,
             passcode,
             advancedOptions,
+            isLocked: isLocked || false,
             host: req.user._id,
         });
 

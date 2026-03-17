@@ -22,6 +22,11 @@ const userSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    plan: {
+        type: String,
+        enum: ['Basic', 'Personal', 'Business'],
+        default: 'Basic'
+    },
     meetingHistory: [{
         meetingId: String,
         date: {

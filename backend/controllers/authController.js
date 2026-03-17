@@ -38,3 +38,20 @@ exports.login = async (req, res) => {
 exports.getProfile = async (req, res) => {
     res.send(req.user);
 };
+
+exports.updateSubscription = async (req, res) => {
+    try {
+        const { plan } = req.body;
+        if (!['Basic', 'Personal', 'Business'].includes(plan)) {
+            return res.status(400).send({ error: 'Invalid subscription plan.' });
+        }
+        
+        req.user.plan = plan;
+        await req.user.save();
+        
+        res.send(req.user);
+    } catch (e) {
+        console.error('Subscription update error:', e);
+        res.status(500).send({ error: 'Failed to update subscription.' });
+    }
+};
