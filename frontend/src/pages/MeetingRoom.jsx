@@ -411,8 +411,8 @@ export default function MeetingRoom() {
     const shareToWhatsAppRoom = () => {
         const url = `${window.location.origin}/room/${roomId}`;
         const now = new Date();
-        const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-        const timeOptions = { hour: '2-digit', minute: '2-digit' };
+        const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' };
+        const timeOptions = { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' };
         
         const dateString = now.toLocaleDateString(undefined, dateOptions);
         const timeString = now.toLocaleTimeString(undefined, timeOptions);
@@ -431,8 +431,8 @@ export default function MeetingRoom() {
     const shareViaEmail = () => {
         const url = `${window.location.origin}/room/${roomId}`;
         const now = new Date();
-        const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-        const timeOptions = { hour: '2-digit', minute: '2-digit' };
+        const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' };
+        const timeOptions = { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' };
         
         const dateString = now.toLocaleDateString(undefined, dateOptions);
         const timeString = now.toLocaleTimeString(undefined, timeOptions);

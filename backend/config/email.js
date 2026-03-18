@@ -10,9 +10,10 @@ const transporter = nodemailer.createTransport({
 
 exports.sendInvitation = async (email, meetingId, hostName, meetingOptions = {}) => {
     const meetingTitle = meetingOptions.title || 'Scheduled Meeting';
-    const formattedDate = meetingOptions.startTime ? new Date(meetingOptions.startTime).toLocaleString('en-US', {
+    const formattedDate = meetingOptions.startTime ? new Date(meetingOptions.startTime).toLocaleString('en-IN', {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-        hour: 'numeric', minute: '2-digit', timeZoneName: 'short'
+        hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
+        timeZone: 'Asia/Kolkata'
     }) : 'Scheduled (See Link)';
 
     const mailOptions = {
