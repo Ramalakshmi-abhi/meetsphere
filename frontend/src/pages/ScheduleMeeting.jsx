@@ -104,7 +104,7 @@ const ScheduleMeeting = () => {
         } catch (err) {
             console.error(err);
             const errorMsg = err.response?.data?.error || err.message || 'Unknown error occurred';
-            alert(`Failed to schedule meeting: ${errorMsg}`);
+            alert(`Failed to schedule meeting: ${typeof errorMsg === 'object' ? JSON.stringify(errorMsg) : errorMsg}`);
         } finally {
             setLoading(false);
         }
