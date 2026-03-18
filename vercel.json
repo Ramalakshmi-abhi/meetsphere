@@ -12,18 +12,11 @@
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "https://meetsphere-production.up.railway.app/api/$1"
+      "dest": "https://meetsphere-production-6ae4.up.railway.app/api/$1"
     },
     {
       "src": "/uploads/(.*)",
-      "dest": "https://meetsphere-production.up.railway.app/uploads/$1"
-    },
-    {
-      "src": "/socket.io/(.*)",
-      "dest": "https://meetsphere-production.up.railway.app/socket.io/$1"
-    },
-    {
-      "handle": "filesystem"
+      "dest": "https://meetsphere-production-6ae4.up.railway.app/uploads/$1"
     },
     {
       "src": "/(.*)",
