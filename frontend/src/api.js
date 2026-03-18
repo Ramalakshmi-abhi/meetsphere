@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-export const BASE_URL = 'https://meetsphere-production-6ap4.up.railway.app';
+export const BASE_URL = 'https://meetsphere-production-6ae4.up.railway.app';
+
 
 
 
