@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-export const BASE_URL = import.meta.env.VITE_BACKEND_URL || 'https://73pq0x-ip-157-49-248-210.tunnelmole.net';
+export const BASE_URL = import.meta.env.VITE_BACKEND_URL || '';
 
 
 const api = axios.create({

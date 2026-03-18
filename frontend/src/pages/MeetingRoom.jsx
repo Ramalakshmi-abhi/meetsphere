@@ -108,14 +108,16 @@ export default function MeetingRoom() {
 
         socket.on('all-users', users => {
             const currentPeers = [];
-            users.forEach(userId => {
-                const peer = createPeer(userId, socket.id, stream);
+            users.forEach(userObj => {
+                const peer = createPeer(userObj.id, socket.id, stream);
                 peersRef.current.push({
-                    peerID: userId,
+                    peerID: userObj.id,
+                    peerName: userObj.name,
                     peer,
                 });
                 currentPeers.push({
-                    peerID: userId,
+                    peerID: userObj.id,
+                    peerName: userObj.name,
                     peer,
                 });
             });
@@ -126,14 +128,19 @@ export default function MeetingRoom() {
             const peer = addPeer(payload.signal, payload.callerID, stream);
             peersRef.current.push({
                 peerID: payload.callerID,
+                peerName: payload.callerName,
                 peer,
             });
-            setPeers(users => [...users, { peerID: payload.callerID, peer }]);
+            setPeers(users => [...users, { peerID: payload.callerID, peerName: payload.callerName, peer }]);
         });
 
         socket.on('receiving-returned-signal', payload => {
             const item = peersRef.current.find(p => p.peerID === payload.id);
-            if (item) item.peer.signal(payload.signal);
+            if (item) {
+                item.peerName = payload.name;
+                item.peer.signal(payload.signal);
+                setPeers(prev => prev.map(p => p.peerID === payload.id ? { ...p, peerName: payload.name } : p));
+            }
         });
 
         socket.on('user-disconnected', userId => {
@@ -190,7 +197,22 @@ export default function MeetingRoom() {
             config: {
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:global.stun.twilio.com:3478' }
+                    { urls: 'stun:global.stun.twilio.com:3478' },
+                    { 
+                        urls: 'turn:openrelay.metered.ca:80',
+                        username: 'openrelayproject',
+                        credential: 'openrelayproject'
+                    },
+                    { 
+                        urls: 'turn:openrelay.metered.ca:443',
+                        username: 'openrelayproject',
+                        credential: 'openrelayproject'
+                    },
+                    { 
+                        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                        username: 'openrelayproject',
+                        credential: 'openrelayproject'
+                    }
                 ]
             }
         });
@@ -210,7 +232,22 @@ export default function MeetingRoom() {
             config: {
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:global.stun.twilio.com:3478' }
+                    { urls: 'stun:global.stun.twilio.com:3478' },
+                    { 
+                        urls: 'turn:openrelay.metered.ca:80',
+                        username: 'openrelayproject',
+                        credential: 'openrelayproject'
+                    },
+                    { 
+                        urls: 'turn:openrelay.metered.ca:443',
+                        username: 'openrelayproject',
+                        credential: 'openrelayproject'
+                    },
+                    { 
+                        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                        username: 'openrelayproject',
+                        credential: 'openrelayproject'
+                    }
                 ]
             }
         });
@@ -549,8 +586,8 @@ export default function MeetingRoom() {
                         </div>
                         {peers.map(p => (
                             <div key={p.peerID || Math.random()} className="participant-item">
-                                <div className="avatar small">P</div>
-                                <span>{p.peerID ? p.peerID.substring(0, 5) : 'User'}</span>
+                                <div className="avatar small">{p.peerName ? p.peerName[0].toUpperCase() : 'U'}</div>
+                                <span>{p.peerName || (p.peerID ? p.peerID.substring(0, 5) : 'User')}</span>
                                 {isHost && (
                                     <div className="host-controls">
                                         <button onClick={() => muteParticipant(p.peerID)} title="Mute">
@@ -583,13 +620,13 @@ const VideoComponent = ({ peer }) => {
 
     useEffect(() => {
         // Handle pre-existing streams explicitly (React race condition fix)
-        if (peer.streams && peer.streams.length > 0) {
-            ref.current.srcObject = peer.streams[0];
-        } else if (peer._remoteStreams && peer._remoteStreams.length > 0) {
-            ref.current.srcObject = peer._remoteStreams[0];
+        if (peer.peer.streams && peer.peer.streams.length > 0) {
+            ref.current.srcObject = peer.peer.streams[0];
+        } else if (peer.peer._remoteStreams && peer.peer._remoteStreams.length > 0) {
+            ref.current.srcObject = peer.peer._remoteStreams[0];
         }
 
-        peer.on('stream', stream => {
+        peer.peer.on('stream', stream => {
             ref.current.srcObject = stream;
         });
     }, [peer]);
@@ -597,6 +634,7 @@ const VideoComponent = ({ peer }) => {
     return (
         <div className="video-card">
             <video playsInline autoPlay ref={ref} />
+            <div className="video-label">{peer.peerName || 'User'}</div>
         </div>
     );
 };

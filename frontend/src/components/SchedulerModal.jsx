@@ -37,13 +37,17 @@ export default function SchedulerModal({ closeModal }) {
                 isoStartTime = new Date(date).toISOString();
             }
 
-            await api.post('/api/meeting/schedule', {
+            const res = await api.post('/api/meeting/schedule', {
                 title: title || 'Scheduled Meeting',
                 startTime: isoStartTime,
                 participants: participantList,
                 advancedOptions
             });
-            alert('Meeting scheduled and invitations sent!');
+            if (res.data.emailWarnings && res.data.emailWarnings.length > 0) {
+                alert('Meeting scheduled successfully, but some email invitations failed. Please share the link manually. (Note: Email service may require domain verification).');
+            } else {
+                alert('Meeting scheduled and invitations sent!');
+            }
             closeModal();
         } catch (err) {
             console.error(err);

@@ -1,7 +1,12 @@
-const { Resend } = require('resend');
+const nodemailer = require('nodemailer');
 
-// Initialize Resend with the provided API key
-const resend = new Resend('re_V49KT2dT_JrmtHCJSVz6kcx1Y7RnPjWhP');
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
 
 exports.sendInvitation = async (email, meetingId, hostName, meetingOptions = {}) => {
     const meetingTitle = meetingOptions.title || 'Scheduled Meeting';
@@ -11,7 +16,7 @@ exports.sendInvitation = async (email, meetingId, hostName, meetingOptions = {})
     }) : 'Scheduled (See Link)';
 
     const mailOptions = {
-        from: 'MeetSphere <onboarding@resend.dev>', // Resend free tier requires this specific sender
+        from: `"MeetSphere" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: `Meeting Invitation: ${hostName} invited you to "${meetingTitle}"`,
         html: `
@@ -41,19 +46,12 @@ exports.sendInvitation = async (email, meetingId, hostName, meetingOptions = {})
                 <p style="color: #666; font-size: 14px;">If you don't have an account, you can still join as a guest or sign up first.</p>
             </div>
         `
-
     };
 
     try {
-        const data = await resend.emails.send(mailOptions);
-        
-        if (data.error) {
-            console.error('Email error:', data.error);
-            return { success: false, error: data.error };
-        }
-
-        console.log(`[Resend] Successfully sent email to ${email}`);
-        return { success: true };
+        const info = await transporter.sendMail(mailOptions);
+        console.log(`[Nodemailer] Successfully sent email to ${email}`);
+        return { success: true, messageId: info.messageId };
     } catch (error) {
         console.error('Email error:', error);
         return { success: false, error };

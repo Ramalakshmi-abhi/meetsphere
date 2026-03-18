@@ -32,23 +32,34 @@ exports.scheduleMeeting = async (req, res) => {
         await meeting.save();
         console.log(`[Meeting] Meeting saved to DB: ${meetingId}`);
 
+        let emailWarnings = [];
         // Wait for all emails to physically leave the server before sending the HTTP response.
         // Vercel immediately freezes the execution environment upon res.send()
         if (participants && participants.length > 0) {
             console.log(`[Meeting] Sending invitations to: ${participants.join(', ')}`);
             
             await Promise.all(participants.map(async (email) => {
-                const res = await sendInvitation(email, meetingId, req.user.name, { title, startTime });
-                if (!res.success) {
-                    console.error(`[Email Failed] to ${email}:`, res.error);
-                    throw new Error(`Failed to send email to ${email}: ${res.error?.message || 'Unknown SMTP error'}`);
+                try {
+                    const emailRes = await sendInvitation(email, meetingId, req.user.name, { title, startTime });
+                    if (!emailRes.success) {
+                        console.error(`[Email Failed] to ${email}:`, emailRes.error);
+                        emailWarnings.push(`Failed to send email to ${email}`);
+                    }
+                } catch (emailErr) {
+                    console.error(`[Email Error] for ${email}:`, emailErr);
+                    emailWarnings.push(`Error sending email to ${email}`);
                 }
             }));
             
-            console.log(`[Meeting] All email dispatches completed successfully`);
+            console.log(`[Meeting] Email dispatch process completed`);
         }
 
-        res.status(201).send(meeting);
+        const responsePayload = {
+            ...meeting.toObject(),
+            emailWarnings: emailWarnings.length > 0 ? emailWarnings : undefined
+        };
+
+        res.status(201).send(responsePayload);
     } catch (e) {
         console.error('CRITICAL: [Meeting] Scheduling error:', e);
         res.status(500).send({ error: e.message || 'Scheduling failed' });

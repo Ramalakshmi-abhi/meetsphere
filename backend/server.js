@@ -101,16 +101,22 @@ app.get('/api/health/email', async (req, res) => {
 
 const users = {};
 const socketToRoom = {};
+const socketToName = {};
 
 io.on('connection', (socket) => {
-    socket.on('join-room', (roomID) => {
+    socket.on('join-room', (roomID, socketId, userName) => {
         if (users[roomID]) {
             users[roomID].push(socket.id);
         } else {
             users[roomID] = [socket.id];
         }
         socketToRoom[socket.id] = roomID;
-        const usersInThisRoom = users[roomID].filter(id => id !== socket.id);
+        socketToName[socket.id] = userName || 'Guest';
+        
+        // Return array of objects containing both id and name
+        const usersInThisRoom = users[roomID]
+            .filter(id => id !== socket.id)
+            .map(id => ({ id, name: socketToName[id] }));
 
         socket.emit('all-users', usersInThisRoom);
     });
@@ -124,11 +130,19 @@ io.on('connection', (socket) => {
     });
 
     socket.on('sending-signal', payload => {
-        io.to(payload.userToSignal).emit('user-joined', { signal: payload.signal, callerID: payload.callerID });
+        io.to(payload.userToSignal).emit('user-joined', { 
+            signal: payload.signal, 
+            callerID: payload.callerID,
+            callerName: socketToName[payload.callerID] || 'Guest'
+        });
     });
 
     socket.on('returning-signal', payload => {
-        io.to(payload.callerID).emit('receiving-returned-signal', { signal: payload.signal, id: socket.id });
+        io.to(payload.callerID).emit('receiving-returned-signal', { 
+            signal: payload.signal, 
+            id: socket.id,
+            name: socketToName[socket.id] || 'Guest'
+        });
     });
 
     socket.on('mute-user', payload => {
