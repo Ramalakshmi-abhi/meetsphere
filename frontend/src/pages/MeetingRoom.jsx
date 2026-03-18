@@ -53,6 +53,7 @@ export default function MeetingRoom() {
     const [hasJoined, setHasJoined] = useState(false);
     const [tempGuestName, setTempGuestName] = useState('');
     const [finalName, setFinalName] = useState(userName);
+    const [hostBranding, setHostBranding] = useState(null);
 
     
     const userVideo = useRef();
@@ -92,6 +93,9 @@ export default function MeetingRoom() {
                     setMeetingTitle(res.data.title);
                     if (res.data.advancedOptions) {
                         setMeetingOptions(res.data.advancedOptions);
+                    }
+                    if (res.data.host && res.data.host.branding) {
+                        setHostBranding(res.data.host.branding);
                     }
                 } catch (err) {
                     console.error('Error fetching meeting details:', err);
@@ -524,8 +528,14 @@ export default function MeetingRoom() {
         );
     }
 
+    const containerStyle = hostBranding ? {
+        '--primary': hostBranding.primaryColor || '#6366f1',
+        '--bg-deep': hostBranding.secondaryColor || '#0f1115',
+        '--primary-glow': hostBranding.primaryColor ? `${hostBranding.primaryColor}80` : 'rgba(99, 102, 241, 0.4)'
+    } : {};
+
     return (
-        <div className="meeting-container main-layout">
+        <div className="meeting-container main-layout" style={containerStyle}>
             <div className="meeting-main">
                 <div className="video-grid">
                     <div className="video-card self">
@@ -540,8 +550,17 @@ export default function MeetingRoom() {
                 
                 <footer className="meeting-controls">
                     <div className="left-controls">
-                        <span className="meeting-title">{meetingTitle}</span>
-                        <span className="meeting-id">ID: {roomId}</span>
+                        {hostBranding && hostBranding.logoUrl && (
+                            <img 
+                                src={`https://meetsphere-production-6ae4.up.railway.app${hostBranding.logoUrl}`} 
+                                alt="Organization Logo" 
+                                style={{ height: '32px', marginRight: '1rem', borderRadius: '4px', objectFit: 'contain', background: 'rgba(255,255,255,0.1)', padding: '4px' }}
+                            />
+                        )}
+                        <div>
+                            <span className="meeting-title">{meetingTitle}</span>
+                            <span className="meeting-id" style={{ display: 'block', fontSize: '0.85rem' }}>ID: {roomId}</span>
+                        </div>
                     </div>
                     <div className="center-controls">
                         <button onClick={toggleMic} className={micOn ? '' : 'off'}>
