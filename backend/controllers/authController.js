@@ -55,3 +55,34 @@ exports.updateSubscription = async (req, res) => {
         res.status(500).send({ error: 'Failed to update subscription.' });
     }
 };
+
+exports.updateBranding = async (req, res) => {
+    try {
+        const { primaryColor, secondaryColor } = req.body;
+        if (primaryColor) req.user.branding.primaryColor = primaryColor;
+        if (secondaryColor) req.user.branding.secondaryColor = secondaryColor;
+        
+        await req.user.save();
+        res.send(req.user);
+    } catch (e) {
+        console.error('Branding update error:', e);
+        res.status(500).send({ error: 'Failed to update branding colors.' });
+    }
+};
+
+exports.uploadLogo = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).send({ error: 'No logo file uploaded' });
+        }
+
+        const fileUrl = `/uploads/logos/${req.file.filename}`;
+        req.user.branding.logoUrl = fileUrl;
+        await req.user.save();
+
+        res.status(200).send({ message: 'Logo uploaded successfully', user: req.user });
+    } catch (e) {
+        console.error('Logo upload error:', e);
+        res.status(500).send({ error: e.message || 'Upload failed' });
+    }
+};

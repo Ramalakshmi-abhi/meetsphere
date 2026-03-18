@@ -22,6 +22,11 @@ const userSchema = new mongoose.Schema({
         type: String,
         default: ''
     },
+    branding: {
+        primaryColor: { type: String, default: '#6366f1' },
+        secondaryColor: { type: String, default: '#1e293b' },
+        logoUrl: { type: String, default: '' }
+    },
     plan: {
         type: String,
         enum: ['Basic', 'Personal', 'Business'],

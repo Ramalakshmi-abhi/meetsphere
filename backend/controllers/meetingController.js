@@ -69,7 +69,7 @@ exports.scheduleMeeting = async (req, res) => {
 
 exports.getMeetings = async (req, res) => {
     try {
-        const meetings = await Meeting.find({ host: req.user._id }).sort({ startTime: 1 });
+        const meetings = await Meeting.find({ host: req.user._id }).sort({ startTime: 1 }).populate('host', 'name profilePicture branding');
         res.send(meetings);
     } catch (e) {
         console.error('CRITICAL: [Meeting] Fetch error:', e);
@@ -84,7 +84,7 @@ exports.getMeeting = async (req, res) => {
                 { meetingId: req.params.meetingId },
                 { passcode: req.params.meetingId }
             ]
-        });
+        }).populate('host', 'name profilePicture branding');
         if (!meeting) return res.status(404).send({ error: 'Meeting not found' });
         res.send(meeting);
     } catch (e) {
