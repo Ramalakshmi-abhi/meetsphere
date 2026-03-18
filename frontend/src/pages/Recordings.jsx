@@ -1,46 +1,80 @@
-import React from 'react';
-import { Play, Download, Trash2, Calendar, Clock, FileVideo } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Play, Download, Trash2, Calendar, FileVideo } from 'lucide-react';
+import api, { BASE_URL } from '../api';
 import './MenuPages.css';
 
 const Recordings = () => {
-    const recordings = [
-        { id: 1, title: 'Weekly Sync - Engineering', date: 'March 10, 2025', duration: '45m 12s', size: '124 MB' },
-        { id: 2, title: 'Product Design Review', date: 'March 08, 2025', duration: '1h 05m', size: '256 MB' },
-        { id: 3, title: 'Investor Pitch - Q1', date: 'March 05, 2025', duration: '28m 40s', size: '89 MB' },
-        { id: 4, title: 'Sprint Planning', date: 'March 02, 2025', duration: '52m 15s', size: '142 MB' },
-    ];
+    const [recordings, setRecordings] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchRecordings = async () => {
+            try {
+                const res = await api.get('/api/meeting/my-recordings');
+                setRecordings(res.data);
+            } catch (error) {
+                console.error('Error fetching recordings:', error);
+            } finally {
+                setLoading(false);
+            }
+        };
+        fetchRecordings();
+    }, []);
+
+    const formatBytes = (bytes, decimals = 2) => {
+        if (!+bytes) return '0 Bytes';
+        const k = 1024;
+        const dm = decimals < 0 ? 0 : decimals;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+    };
+
+    const handlePlay = (fileUrl) => {
+        // Open the video in a new tab for native browser playback
+        window.open(`${BASE_URL}${fileUrl}`, '_blank');
+    };
 
     return (
         <div className="menu-page">
             <div className="page-header-row">
                 <h1>Recordings</h1>
-                <div className="storage-info">
-                    <span>Storage: <strong>1.2 GB</strong> of 5 GB used</span>
-                    <div className="progress-bar-small"><div className="fill" style={{ width: '24%' }}></div></div>
-                </div>
             </div>
 
-            <div className="recordings-grid">
-                {recordings.map(rec => (
-                    <div key={rec.id} className="recording-card">
-                        <div className="video-thumbnail">
-                            <Play size={24} fill="white" />
-                            <div className="duration-tag">{rec.duration}</div>
-                        </div>
-                        <div className="recording-details">
-                            <h3>{rec.title}</h3>
-                            <div className="rec-meta">
-                                <span className="meta-item"><Calendar size={14} /> {rec.date}</span>
-                                <span className="meta-item"><FileVideo size={14} /> {rec.size}</span>
+            {loading ? (
+                <div style={{ padding: '20px', color: '#666' }}>Loading recordings...</div>
+            ) : recordings.length === 0 ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: '#666', background: '#f9fafb', borderRadius: '8px' }}>
+                    <FileVideo size={48} style={{ opacity: 0.5, marginBottom: '10px' }} />
+                    <p>No recordings found.</p>
+                    <p style={{ fontSize: '14px', marginTop: '5px' }}>Start a meeting and press 'record' to save your first video.</p>
+                </div>
+            ) : (
+                <div className="recordings-grid">
+                    {recordings.map(rec => (
+                        <div key={rec._id} className="recording-card">
+                            <div className="video-thumbnail" onClick={() => handlePlay(rec.fileUrl)} style={{ cursor: 'pointer' }}>
+                                <Play size={32} fill="white" />
                             </div>
-                            <div className="recording-actions">
-                                <button className="btn-icon-text"><Download size={16} /> Download</button>
-                                <button className="btn-icon-danger"><Trash2 size={16} /></button>
+                            <div className="recording-details">
+                                <h3>Meeting ID: {rec.meetingId}</h3>
+                                <div className="rec-meta">
+                                    <span className="meta-item"><Calendar size={14} /> {new Date(rec.createdAt).toLocaleDateString()}</span>
+                                    <span className="meta-item"><FileVideo size={14} /> {formatBytes(rec.sizeBytes)}</span>
+                                </div>
+                                <div className="recording-actions">
+                                    <button className="btn-icon-text" onClick={() => handlePlay(rec.fileUrl)}>
+                                        <Play size={16} /> Play
+                                    </button>
+                                    <a href={`${BASE_URL}${rec.fileUrl}`} download className="btn-icon-text" style={{ textDecoration: 'none' }}>
+                                        <Download size={16} /> Save
+                                    </a>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 };

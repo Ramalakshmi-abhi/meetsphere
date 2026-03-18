@@ -378,16 +378,35 @@ export default function MeetingRoom() {
                 }
             };
 
-            mediaRecorderRef.current.onstop = () => {
+            mediaRecorderRef.current.onstop = async () => {
                 const blob = new Blob(recordedChunks.current, { type: 'video/webm' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.style.display = 'none';
-                a.href = url;
-                a.download = `meeting-recording-${roomId}.webm`;
-                document.body.appendChild(a);
-                a.click();
-                window.URL.revokeObjectURL(url);
+                
+                // Show a toast or log indicating upload started
+                console.log('Uploading recording to server...');
+                
+                const formData = new FormData();
+                formData.append('recording', blob, `meeting-${roomId}.webm`);
+
+                try {
+                    await api.post(`/api/meeting/${roomId}/recording`, formData, {
+                        headers: {
+                            'Content-Type': 'multipart/form-data'
+                        }
+                    });
+                    alert('Recording successfully saved to the cloud!');
+                } catch (error) {
+                    console.error('Failed to upload recording:', error);
+                    // Fallback to local download if upload fails
+                    alert('Failed to save to cloud. Downloading locally instead.');
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = `meeting-recording-${roomId}.webm`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                }
             };
 
             mediaRecorderRef.current.start();
@@ -448,12 +467,8 @@ export default function MeetingRoom() {
         
         const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
         
-        // Use a hidden anchor tag which is more reliable on mobile browsers
-        const a = document.createElement('a');
-        a.href = mailtoLink;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
+        // Use window.open as the primary method since hidden anchors often fail without default clients
+        window.open(mailtoLink, '_self');
     };
 
     if (!hasJoined) {

@@ -104,3 +104,46 @@ exports.deleteMeeting = async (req, res) => {
         res.status(500).send({ error: e.message || 'Delete failed' });
     }
 };
+
+const Recording = require('../models/Recording');
+
+exports.uploadRecording = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).send({ error: 'No recording file uploaded' });
+        }
+
+        const meetingId = req.params.roomId;
+        const hostId = req.user._id;
+
+        // In a production environment with Vercel/Railway, 
+        // storing to local disk isn't persistent unless volume is attached.
+        // The file is currently in /uploads/recordings based on multer config.
+        const fileUrl = `/uploads/recordings/${req.file.filename}`;
+
+        const recording = new Recording({
+            meetingId,
+            host: hostId,
+            fileUrl,
+            sizeBytes: req.file.size
+        });
+
+        await recording.save();
+        console.log(`[Recording] Saved recording for meeting ${meetingId}`);
+
+        res.status(201).send({ message: 'Recording uploaded successfully', recording });
+    } catch (e) {
+        console.error('CRITICAL: [Recording] Upload error:', e);
+        res.status(500).send({ error: e.message || 'Upload failed' });
+    }
+};
+
+exports.getMyRecordings = async (req, res) => {
+    try {
+        const recordings = await Recording.find({ host: req.user._id }).sort({ createdAt: -1 });
+        res.send(recordings);
+    } catch (e) {
+        console.error('CRITICAL: [Recording] Fetch error:', e);
+        res.status(500).send({ error: e.message || 'Fetch failed' });
+    }
+};
