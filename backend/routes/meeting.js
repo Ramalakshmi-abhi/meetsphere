@@ -9,8 +9,12 @@ const fs = require('fs');
 
 // Ensure upload directory exists
 const uploadDir = path.join(__dirname, '../uploads/recordings');
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
+try {
+    if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+    }
+} catch (err) {
+    console.warn("Could not create local upload directory (expected on Vercel/Serverless). Using temp directory instead.");
 }
 
 const storage = multer.diskStorage({

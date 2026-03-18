@@ -3,7 +3,7 @@ const { sendInvitation } = require('../config/email');
 
 exports.scheduleMeeting = async (req, res) => {
     try {
-        const { title, startTime, participants, passcode, advancedOptions, isLocked } = req.body;
+        const { title, startTime, participants, passcode, options, isLocked } = req.body;
         
         if (passcode) {
             const existingMeeting = await Meeting.findOne({
@@ -24,7 +24,7 @@ exports.scheduleMeeting = async (req, res) => {
             title,
             startTime,
             passcode,
-            advancedOptions,
+            advancedOptions: options,
             isLocked: isLocked || false,
             host: req.user._id,
         });
@@ -32,31 +32,26 @@ exports.scheduleMeeting = async (req, res) => {
         await meeting.save();
         console.log(`[Meeting] Meeting saved to DB: ${meetingId}`);
 
-        let emailWarnings = [];
-        // Wait for all emails to physically leave the server before sending the HTTP response.
-        // Vercel immediately freezes the execution environment upon res.send()
+        // Run email dispatch in the background to prevent Vercel/UI timeout & hanging
         if (participants && participants.length > 0) {
-            console.log(`[Meeting] Sending invitations to: ${participants.join(', ')}`);
+            console.log(`[Meeting] Starting background email dispatch to: ${participants.join(', ')}`);
             
-            await Promise.all(participants.map(async (email) => {
+            Promise.all(participants.map(async (email) => {
                 try {
                     const emailRes = await sendInvitation(email, meetingId, req.user.name, { title, startTime });
                     if (!emailRes.success) {
                         console.error(`[Email Failed] to ${email}:`, emailRes.error);
-                        emailWarnings.push(`Failed to send email to ${email}`);
                     }
                 } catch (emailErr) {
                     console.error(`[Email Error] for ${email}:`, emailErr);
-                    emailWarnings.push(`Error sending email to ${email}`);
                 }
-            }));
-            
-            console.log(`[Meeting] Email dispatch process completed`);
+            })).then(() => {
+                console.log(`[Meeting] Background email dispatch successfully completed`);
+            });
         }
 
         const responsePayload = {
-            ...meeting.toObject(),
-            emailWarnings: emailWarnings.length > 0 ? emailWarnings : undefined
+            ...meeting.toObject()
         };
 
         res.status(201).send(responsePayload);
