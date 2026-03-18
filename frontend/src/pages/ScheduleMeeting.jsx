@@ -299,7 +299,7 @@ const ScheduleMeeting = () => {
                         </div>
                         
                         <button type="submit" className="submit-form-btn" disabled={loading}>
-                            {loading ? 'Scheduling...' : 'Schedule Meeting'}
+                            {loading ? 'Saving & Sending Emails...' : 'Schedule Meeting'}
                         </button>
                     </section>
                 </div>

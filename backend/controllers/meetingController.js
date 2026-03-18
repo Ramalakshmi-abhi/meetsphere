@@ -32,11 +32,12 @@ exports.scheduleMeeting = async (req, res) => {
         await meeting.save();
         console.log(`[Meeting] Meeting saved to DB: ${meetingId}`);
 
-        // Run email dispatch in the background to prevent Vercel/UI timeout & hanging
+        // Ensure emails physically leave the server before responding, 
+        // to prevent PaaS environments from halting CPU or closing sockets early.
         if (participants && participants.length > 0) {
-            console.log(`[Meeting] Starting background email dispatch to: ${participants.join(', ')}`);
+            console.log(`[Meeting] Dispatching emails to: ${participants.join(', ')}`);
             
-            Promise.all(participants.map(async (email) => {
+            await Promise.all(participants.map(async (email) => {
                 try {
                     const emailRes = await sendInvitation(email, meetingId, req.user.name, { title, startTime });
                     if (!emailRes.success) {
@@ -45,9 +46,8 @@ exports.scheduleMeeting = async (req, res) => {
                 } catch (emailErr) {
                     console.error(`[Email Error] for ${email}:`, emailErr);
                 }
-            })).then(() => {
-                console.log(`[Meeting] Background email dispatch successfully completed`);
-            });
+            }));
+            console.log(`[Meeting] Email dispatch successfully completed`);
         }
 
         const responsePayload = {
