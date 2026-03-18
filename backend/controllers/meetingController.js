@@ -34,6 +34,7 @@ exports.scheduleMeeting = async (req, res) => {
 
         // Ensure emails physically leave the server before responding, 
         // to prevent PaaS environments from halting CPU or closing sockets early.
+        let emailWarnings = [];
         if (participants && participants.length > 0) {
             console.log(`[Meeting] Dispatching emails to: ${participants.join(', ')}`);
             
@@ -41,17 +42,22 @@ exports.scheduleMeeting = async (req, res) => {
                 try {
                     const emailRes = await sendInvitation(email, meetingId, req.user.name, { title, startTime });
                     if (!emailRes.success) {
-                        console.error(`[Email Failed] to ${email}:`, emailRes.error);
+                        const errMsg = emailRes.error ? emailRes.error.message || emailRes.error.toString() : 'Unknown Error';
+                        console.error(`[Email Failed] to ${email}:`, errMsg);
+                        emailWarnings.push(`Failed to send to ${email}: ${errMsg}`);
                     }
                 } catch (emailErr) {
-                    console.error(`[Email Error] for ${email}:`, emailErr);
+                    const errMsg2 = emailErr ? emailErr.message || emailErr.toString() : 'Unknown Catch Error';
+                    console.error(`[Email Error] for ${email}:`, errMsg2);
+                    emailWarnings.push(`Failed to send to ${email}: ${errMsg2}`);
                 }
             }));
-            console.log(`[Meeting] Email dispatch successfully completed`);
+            console.log(`[Meeting] Email dispatch successfully completed! Warnings recorded: ${emailWarnings.length}`);
         }
 
         const responsePayload = {
-            ...meeting.toObject()
+            ...meeting.toObject(),
+            emailWarnings
         };
 
         res.status(201).send(responsePayload);

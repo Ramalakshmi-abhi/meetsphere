@@ -44,7 +44,7 @@ export default function SchedulerModal({ closeModal }) {
                 advancedOptions
             });
             if (res.data.emailWarnings && res.data.emailWarnings.length > 0) {
-                alert('Meeting scheduled successfully, but some email invitations failed. Please share the link manually. (Note: Email service may require domain verification).');
+                alert('Meeting scheduled, BUT EMAIL FAILED! Error:\n' + res.data.emailWarnings.join('\n'));
             } else {
                 alert('Meeting scheduled and invitations sent!');
             }
