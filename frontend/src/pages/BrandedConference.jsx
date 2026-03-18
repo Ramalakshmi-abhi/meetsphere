@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef, useContext } from 'react';
 import { Palette, Image as ImageIcon, Save } from 'lucide-react';
 import api from '../api';
 import './MenuPages.css';
-import { AuthContext } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 
 const BrandedConference = () => {
-    const { user, updateUser } = useContext(AuthContext);
+    const { user } = useAuth();
     const [branding, setBranding] = useState({
         primaryColor: '#6366f1',
         secondaryColor: '#1e293b',
@@ -66,9 +66,6 @@ const BrandedConference = () => {
             }
             
             alert('Branding successfully saved!');
-            if (updateUser && colorsRes.data) {
-                updateUser(colorsRes.data);
-            }
         } catch (err) {
             console.error('Save error', err);
             alert('Failed to save branding settings.');
