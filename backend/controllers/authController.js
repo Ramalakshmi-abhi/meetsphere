@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 exports.register = async (req, res) => {
     try {
@@ -84,5 +85,88 @@ exports.uploadLogo = async (req, res) => {
     } catch (e) {
         console.error('Logo upload error:', e);
         res.status(500).send({ error: e.message || 'Upload failed' });
+    }
+};
+
+exports.updateMeetingSettings = async (req, res) => {
+    try {
+        const { defaultVideoQuality, muteOnEntry, waitingRoom, meetingPasscode } = req.body;
+        
+        // Initialize if it doesn't exist
+        if (!req.user.meetingSettings) {
+            req.user.meetingSettings = {};
+        }
+        
+        if (defaultVideoQuality !== undefined) req.user.meetingSettings.defaultVideoQuality = defaultVideoQuality;
+        if (muteOnEntry !== undefined) req.user.meetingSettings.muteOnEntry = muteOnEntry;
+        if (waitingRoom !== undefined) req.user.meetingSettings.waitingRoom = waitingRoom;
+        if (meetingPasscode !== undefined) req.user.meetingSettings.meetingPasscode = meetingPasscode;
+        
+        await req.user.save();
+        res.send(req.user.meetingSettings);
+    } catch (e) {
+        console.error('Meeting settings update error:', e);
+        res.status(500).send({ error: 'Failed to update meeting settings.' });
+    }
+};
+
+exports.regenerateKeys = async (req, res) => {
+    try {
+        const apiKey = 'ms_live_' + crypto.randomBytes(12).toString('hex');
+        const secretKey = 'sk_live_' + crypto.randomBytes(24).toString('hex');
+        
+        if (!req.user.developerSettings) {
+            req.user.developerSettings = { webhooks: [] };
+        }
+        
+        req.user.developerSettings.apiKey = apiKey;
+        req.user.developerSettings.secretKey = secretKey;
+        await req.user.save();
+        
+        res.send({ apiKey, secretKey });
+    } catch (e) {
+        console.error('Keys regeneration error:', e);
+        res.status(500).send({ error: 'Failed to regenerate keys.' });
+    }
+};
+
+exports.addWebhook = async (req, res) => {
+    try {
+        const { url } = req.body;
+        if (!url) return res.status(400).send({ error: 'Webhook URL is required' });
+        
+        if (!req.user.developerSettings) {
+            req.user.developerSettings = { apiKey: '', secretKey: '', webhooks: [] };
+        }
+        
+        const webhookId = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(8).toString('hex');
+        
+        req.user.developerSettings.webhooks.push({
+            id: webhookId,
+            url: url
+        });
+        
+        await req.user.save();
+        res.send(req.user.developerSettings.webhooks);
+    } catch (e) {
+        console.error('Add webhook error:', e);
+        res.status(500).send({ error: 'Failed to add webhook.' });
+    }
+};
+
+exports.removeWebhook = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (!req.user.developerSettings) return res.status(404).send({ error: 'No developer settings found' });
+        
+        req.user.developerSettings.webhooks = req.user.developerSettings.webhooks.filter(
+            wh => wh.id !== id
+        );
+        
+        await req.user.save();
+        res.send(req.user.developerSettings.webhooks);
+    } catch (e) {
+        console.error('Remove webhook error:', e);
+        res.status(500).send({ error: 'Failed to remove webhook.' });
     }
 };

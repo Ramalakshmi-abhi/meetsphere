@@ -18,6 +18,7 @@ import Recordings from './pages/Recordings';
 import Analytics from './pages/Analytics';
 import Invoices from './pages/Invoices';
 import DeveloperSettings from './pages/DeveloperSettings';
+import DeveloperDocs from './pages/DeveloperDocs';
 import MeetingSettings from './pages/MeetingSettings';
 import BrandedConference from './pages/BrandedConference';
 import './App.css';
@@ -64,6 +65,7 @@ function App() {
                         <Route path="/analytics" element={<PrivateRoute><Analytics /></PrivateRoute>} />
                         <Route path="/invoices" element={<PrivateRoute><Invoices /></PrivateRoute>} />
                         <Route path="/developers" element={<PrivateRoute><DeveloperSettings /></PrivateRoute>} />
+                        <Route path="/developers/docs" element={<PrivateRoute><DeveloperDocs /></PrivateRoute>} />
                         <Route path="/settings" element={<PrivateRoute><MeetingSettings /></PrivateRoute>} />
                         <Route path="/branded" element={<PrivateRoute><BrandedConference /></PrivateRoute>} />
 

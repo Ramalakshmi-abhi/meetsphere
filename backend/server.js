@@ -194,8 +194,10 @@ app.get('/api/admin/stats', async (req, res) => {
 // Routes
 const authRoutes = require('./routes/auth');
 const meetingRoutes = require('./routes/meeting');
+const contactRoutes = require('./routes/contact');
 app.use('/api/auth', authRoutes);
 app.use('/api/meeting', meetingRoutes);
+app.use('/api/contacts', contactRoutes);
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));

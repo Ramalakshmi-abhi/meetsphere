@@ -32,6 +32,20 @@ const userSchema = new mongoose.Schema({
         enum: ['Basic', 'Personal', 'Business'],
         default: 'Basic'
     },
+    meetingSettings: {
+        defaultVideoQuality: { type: String, default: 'High Definition (720p)' },
+        muteOnEntry: { type: Boolean, default: true },
+        waitingRoom: { type: Boolean, default: false },
+        meetingPasscode: { type: Boolean, default: true }
+    },
+    developerSettings: {
+        apiKey: { type: String, default: '' },
+        secretKey: { type: String, default: '' },
+        webhooks: [{
+            id: { type: String, required: true },
+            url: { type: String, required: true }
+        }]
+    },
     meetingHistory: [{
         meetingId: String,
         date: {

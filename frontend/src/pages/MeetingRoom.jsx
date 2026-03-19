@@ -163,10 +163,14 @@ export default function MeetingRoom() {
     // Continuously ensure the stream is attached to the local video element,
     // especially after the DOM swaps from the waiting room to the meeting room.
     useEffect(() => {
-        if (userVideo.current && stream) {
-            userVideo.current.srcObject = stream;
+        if (userVideo.current) {
+            if (screenStream) {
+                userVideo.current.srcObject = screenStream;
+            } else if (stream) {
+                userVideo.current.srcObject = stream;
+            }
         }
-    }, [stream, hasJoined]);
+    }, [stream, screenStream, hasJoined]);
 
     const joinMeetingRoom = () => {
         if (!user && !tempGuestName.trim()) {
@@ -471,8 +475,8 @@ export default function MeetingRoom() {
         
         const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
         
-        // Use window.open as the primary method since hidden anchors often fail without default clients
-        window.open(mailtoLink, '_self');
+        // Use window.location.href to safely open default email client
+        window.location.href = mailtoLink;
     };
 
     if (!hasJoined) {
@@ -552,7 +556,7 @@ export default function MeetingRoom() {
                     <div className="left-controls">
                         {hostBranding && hostBranding.logoUrl && (
                             <img 
-                                src={`https://meetsphere-production-6ae4.up.railway.app${hostBranding.logoUrl}`} 
+                                src={`${BASE_URL}${hostBranding.logoUrl}`} 
                                 alt="Organization Logo" 
                                 style={{ height: '32px', marginRight: '1rem', borderRadius: '4px', objectFit: 'contain', background: 'rgba(255,255,255,0.1)', padding: '4px' }}
                             />
@@ -653,14 +657,15 @@ const VideoComponent = ({ peer }) => {
     const ref = useRef();
 
     useEffect(() => {
+        if (!peer) return;
         // Handle pre-existing streams explicitly (React race condition fix)
-        if (peer.peer.streams && peer.peer.streams.length > 0) {
-            ref.current.srcObject = peer.peer.streams[0];
-        } else if (peer.peer._remoteStreams && peer.peer._remoteStreams.length > 0) {
-            ref.current.srcObject = peer.peer._remoteStreams[0];
+        if (peer.streams && peer.streams.length > 0) {
+            ref.current.srcObject = peer.streams[0];
+        } else if (peer._remoteStreams && peer._remoteStreams.length > 0) {
+            ref.current.srcObject = peer._remoteStreams[0];
         }
 
-        peer.peer.on('stream', stream => {
+        peer.on('stream', stream => {
             ref.current.srcObject = stream;
         });
     }, [peer]);

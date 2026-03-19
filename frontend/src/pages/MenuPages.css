@@ -826,6 +826,10 @@
     letter-spacing: 0.05em;
 }
 
+.inv-header div:last-child {
+    text-align: right;
+}
+
 .inv-row {
     display: grid;
     grid-template-columns: 1.5fr 1.5fr 1fr 1fr 1fr;
@@ -1074,5 +1078,27 @@
     font-weight: 700;
     cursor: pointer;
     margin-left: 0.5rem;
+}
+
+/* Invoice Action Buttons */
+.btn-download {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.45rem 1rem;
+    background: #f8fafc;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-download:hover {
+    background: #e2e8f0;
+    color: #0f172a;
+    border-color: #94a3b8;
 }
 

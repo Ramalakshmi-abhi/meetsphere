@@ -31,5 +31,10 @@ router.get('/profile', auth, authController.getProfile);
 router.put('/subscription', auth, authController.updateSubscription);
 router.put('/branding', auth, authController.updateBranding);
 router.post('/branding/logo', auth, upload.single('logo'), authController.uploadLogo);
+router.put('/meeting-settings', auth, authController.updateMeetingSettings);
+
+router.post('/developer/keys', auth, authController.regenerateKeys);
+router.post('/developer/webhooks', auth, authController.addWebhook);
+router.delete('/developer/webhooks/:id', auth, authController.removeWebhook);
 
 module.exports = router;
