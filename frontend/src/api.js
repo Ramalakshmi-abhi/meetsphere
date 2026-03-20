@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-export const BASE_URL = '';
+export const BASE_URL = import.meta.env.VITE_BACKEND_URL || 
+    (window.location.hostname === 'localhost' 
+        ? 'http://localhost:5000' 
+        : 'https://meetsphere-production-6ae4.up.railway.app');
 
 
 

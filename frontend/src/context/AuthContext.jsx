@@ -7,8 +7,7 @@ export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    const BASE_URL = import.meta.env.VITE_BACKEND_URL || '';
-    const API_URL = `${BASE_URL}/api/auth`;
+    // BASE_URL is now centrally managed in src/api.js
 
     useEffect(() => {
         const token = localStorage.getItem('token');
