@@ -2,7 +2,7 @@ import axios from 'axios';
 
 export const BASE_URL = window.location.hostname === 'localhost' 
     ? 'http://localhost:5000' 
-    : '';
+    : ''; // Empty string in production to use Vercel proxy
 
 
 

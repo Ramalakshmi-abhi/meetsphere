@@ -17,15 +17,17 @@ const WhatsAppIcon = () => (
 );
 
 // Updated socket init: Allow polling fallback (essential for Vercel serverless)
-const socket = io(BASE_URL, {
+const socket = io(BASE_URL || window.location.origin, {
     path: '/socket.io',
+    transports: ['polling', 'websocket'], // Force polling first, then websocket
     reconnection: true,
-    reconnectionAttempts: 20,
+    reconnectionAttempts: 40,
     reconnectionDelay: 2000,
-    timeout: 20000,
+    timeout: 40000,
+    pingTimeout: 60000,
+    pingInterval: 25000,
     secure: true,
     autoConnect: true,
-    forceNew: false,
     extraHeaders: {
         'Bypass-Tunnel-Reminder': 'true'
     }
@@ -55,6 +57,7 @@ export default function MeetingRoom() {
     const [tempGuestName, setTempGuestName] = useState('');
     const [finalName, setFinalName] = useState(userName);
     const [hostBranding, setHostBranding] = useState(null);
+    const [socketStatus, setSocketStatus] = useState('connecting');
 
     const userVideo = useRef();
     const peersRef = useRef([]);
@@ -62,17 +65,25 @@ export default function MeetingRoom() {
     const recordedChunks = useRef([]);
 
     useEffect(() => {
-        // Log socket connection status for debugging
+        // Detailed socket logging for production debugging
         socket.on('connect', () => {
-            console.log('Socket.IO connected successfully!');
+            console.log('✅ SOCKET.IO CONNECTED! ID:', socket.id);
+            setSocketStatus('connected');
         });
 
         socket.on('connect_error', (err) => {
-            console.error('Socket.IO connection error:', err.message);
+            console.error('❌ SOCKET.IO ERROR:', err.message);
+            setSocketStatus('error');
         });
 
         socket.on('disconnect', (reason) => {
-            console.log('Socket.IO disconnected:', reason);
+            console.log('❌ SOCKET.IO DISCONNECTED:', reason);
+            setSocketStatus('disconnected');
+        });
+
+        // Debug polling packets
+        socket.io.on('packet', (p) => {
+            if (p.type === 'error') console.log('📦 Socket Packet Error:', p.data);
         });
 
         return () => {
@@ -553,17 +564,45 @@ export default function MeetingRoom() {
                         <h1>{meetingTitle}</h1>
                         <p className="meeting-id">Meeting ID: {roomId}</p>
                         
-                        {!user && (
-                            <div className="guest-input-group">
-                                <label>Enter your name</label>
-                                <input 
-                                    type="text" 
-                                    placeholder="Your Display Name"
-                                    value={tempGuestName}
-                                    onChange={(e) => setTempGuestName(e.target.value)}
-                                />
-                            </div>
-                        )}
+                {/* Socket Status Banner */}
+                <div style={{
+                    position: 'fixed',
+                    top: '10px',
+                    right: '10px',
+                    padding: '8px 12px',
+                    borderRadius: '20px',
+                    backgroundColor: 'rgba(0,0,0,0.7)',
+                    color: socketStatus === 'connected' ? '#4ade80' : 
+                           socketStatus === 'connecting' ? '#fbbf24' : '#f87171',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    zIndex: 9999,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    border: '1px solid currentColor'
+                }}>
+                    <div style={{
+                        width: '8px',
+                        height: '8px',
+                        borderRadius: '50%',
+                        backgroundColor: 'currentColor',
+                        boxShadow: '0 0 8px currentColor'
+                    }}></div>
+                    Socket: {socketStatus.toUpperCase()}
+                </div>
+
+                {!user && (
+                    <div className="guest-input-group">
+                        <label>Enter your name</label>
+                        <input 
+                            type="text" 
+                            placeholder="Your Display Name"
+                            value={tempGuestName}
+                            onChange={(e) => setTempGuestName(e.target.value)}
+                        />
+                    </div>
+                )}
                         
                         {user && (
                             <div className="user-info">
@@ -595,6 +634,33 @@ export default function MeetingRoom() {
 
     return (
         <div className="meeting-container main-layout" style={containerStyle}>
+            {/* Socket Status Banner */}
+            <div style={{
+                position: 'fixed',
+                top: '10px',
+                right: '120px', // Shift left in meeting room to avoid overlap with other icons if any
+                padding: '6px 10px',
+                borderRadius: '20px',
+                backgroundColor: 'rgba(0,0,0,0.7)',
+                color: socketStatus === 'connected' ? '#4ade80' : 
+                       socketStatus === 'connecting' ? '#fbbf24' : '#f87171',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                zIndex: 9999,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                border: '1px solid currentColor'
+            }}>
+                <div style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: 'currentColor'
+                }}></div>
+                Socket: {socketStatus.toUpperCase()}
+            </div>
+
             <div className="meeting-main">
                 <div className="video-grid">
                     <div className="video-card self">

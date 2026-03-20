@@ -4,26 +4,38 @@ const http = require('http');
 const socketIo = require('socket.io');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
 
+// Allowed origins (your Vercel frontend domains)
 const allowedOrigins = [
-    "http://localhost:5173", 
+    "http://localhost:5173",
     "http://127.0.0.1:5173",
     "https://meetsphere-ten.vercel.app",
     "https://meetsphere.vercel.app"
 ];
 
+// Socket.IO setup with better polling support and timeouts
 const io = socketIo(server, {
     cors: {
         origin: allowedOrigins,
-        methods: ["GET", "POST"]
-    }
+        methods: ["GET", "POST"],
+        credentials: true
+    },
+    path: '/socket.io',
+    pingTimeout: 60000,       // Increased for Railway wake-up delays
+    pingInterval: 25000,
+    transports: ['polling', 'websocket'],  // Explicitly allow both (polling first)
+    reconnection: true,
+    reconnectionAttempts: 30,
+    reconnectionDelay: 3000,
+    reconnectionDelayMax: 10000,
+    timeout: 30000
 });
 
 // Middleware
-const path = require('path');
 app.use(cors({
     origin: allowedOrigins,
     credentials: true
@@ -31,9 +43,14 @@ app.use(cors({
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// DB Connection logic (Cached for Serverless) - unchanged
-let cached = global.mongoose;
+// Log ALL incoming requests (critical for debugging polling and API 404s)
+app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url} from ${req.ip}`);
+    next();
+});
 
+// DB Connection (cached for serverless compatibility)
+let cached = global.mongoose;
 if (!cached) {
     cached = global.mongoose = { conn: null, promise: null };
 }
@@ -49,9 +66,9 @@ const connectDB = async () => {
         };
 
         console.log('Creating new MongoDB connection promise...');
-        
-        const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Mongoose connection timed out (Hard Limit)')), 15000)
+
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Mongoose connection timed out')), 15000)
         );
 
         cached.promise = Promise.race([
@@ -60,6 +77,10 @@ const connectDB = async () => {
         ]).then((m) => {
             console.log('MongoDB connected successfully');
             return m;
+        }).catch(err => {
+            console.error('MongoDB connection failed:', err);
+            cached.promise = null;
+            throw err;
         });
     }
 
@@ -76,7 +97,7 @@ const connectDB = async () => {
 
 connectDB().catch(() => {});
 
-// Health check route - unchanged
+// Health check route
 app.get('/api/health', async (req, res) => {
     let dbStatus = 'disconnected';
     try {
@@ -86,7 +107,7 @@ app.get('/api/health', async (req, res) => {
         dbStatus = 'error: ' + e.message;
     }
 
-    res.send({ 
+    res.json({
         status: dbStatus,
         mongoose_state: mongoose.connection.readyState,
         mongoose_version: mongoose.version,
@@ -94,29 +115,31 @@ app.get('/api/health', async (req, res) => {
     });
 });
 
-// Email Diagnostic Route - unchanged
+// Email diagnostic route
 const { sendInvitation } = require('./config/email');
 app.get('/api/health/email', async (req, res) => {
     try {
         const result = await sendInvitation(process.env.EMAIL_USER, 'test-id', 'Test-Host');
-        res.send({ 
-            success: result.success, 
+        res.json({
+            success: result.success,
             message: result.success ? 'Test email sent to yourself!' : 'Failed to send test email',
             error: result.error ? result.error.message : null
         });
     } catch (e) {
-        res.status(500).send({ error: e.message });
+        res.status(500).json({ error: e.message });
     }
 });
 
+// Socket.IO connection handler
 const users = {};          // roomID → [socket.id, ...]
 const socketToRoom = {};   // socket.id → roomID
 const socketToName = {};   // socket.id → userName
 
 io.on('connection', (socket) => {
-    console.log(`New client connected: ${socket.id}`);
+    console.log(`New client connected: ${socket.id} (transport: ${socket.conn.transport.name})`);
 
     socket.on('join-room', (roomID, socketId, userName) => {
+        console.log(`User ${userName || 'Guest'} (${socket.id}) joining room ${roomID}`);
         if (users[roomID]) {
             users[roomID].push(socket.id);
         } else {
@@ -124,50 +147,41 @@ io.on('connection', (socket) => {
         }
         socketToRoom[socket.id] = roomID;
         socketToName[socket.id] = userName || 'Guest';
-        
+
         const usersInThisRoom = users[roomID]
             .filter(id => id !== socket.id)
             .map(id => ({ id, name: socketToName[id] }));
 
         socket.emit('all-users', usersInThisRoom);
-
-        // Optional: Notify others that someone joined (useful for UI)
         socket.to(roomID).emit('user-joined-room', { id: socket.id, name: socketToName[socket.id] });
     });
 
     socket.on('check-host', (roomID) => {
-        if (users[roomID] && users[roomID][0] === socket.id) {
-            socket.emit('host-check-result', true);
-        } else {
-            socket.emit('host-check-result', false);
-        }
+        const isHost = users[roomID] && users[roomID][0] === socket.id;
+        socket.emit('host-check-result', isHost);
     });
 
-    // ===================== NEW: ICE Candidate forwarding =====================
     socket.on('ice-candidate', (payload) => {
-        // payload should be: { target: otherSocketId, candidate: RTCIceCandidateInit }
         const { target, candidate } = payload;
         if (target && candidate) {
-            io.to(target).emit('ice-candidate', {
-                from: socket.id,
-                candidate
-            });
+            io.to(target).emit('ice-candidate', { from: socket.id, candidate });
             console.log(`ICE candidate forwarded from ${socket.id} to ${target}`);
         }
     });
-    // ========================================================================
 
     socket.on('sending-signal', payload => {
-        io.to(payload.userToSignal).emit('user-joined', { 
-            signal: payload.signal, 
+        console.log(`Sending signal from ${socket.id} to ${payload.userToSignal}`);
+        io.to(payload.userToSignal).emit('user-joined', {
+            signal: payload.signal,
             callerID: payload.callerID,
             callerName: socketToName[payload.callerID] || 'Guest'
         });
     });
 
     socket.on('returning-signal', payload => {
-        io.to(payload.callerID).emit('receiving-returned-signal', { 
-            signal: payload.signal, 
+        console.log(`Returning signal from ${socket.id} to ${payload.callerID}`);
+        io.to(payload.callerID).emit('receiving-returned-signal', {
+            signal: payload.signal,
             id: socket.id,
             name: socketToName[socket.id] || 'Guest'
         });
@@ -189,7 +203,8 @@ io.on('connection', (socket) => {
         handleUserDisconnect(socket);
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
+        console.log(`Socket ${socket.id} disconnected: ${reason}`);
         handleUserDisconnect(socket);
     });
 });
@@ -207,13 +222,12 @@ function handleUserDisconnect(socket) {
         delete socketToRoom[socket.id];
         delete socketToName[socket.id];
 
-        // Notify others in room
         socket.to(roomID).emit('user-disconnected', socket.id);
         console.log(`User ${socket.id} left room ${roomID}`);
     }
 }
 
-// Admin Stats API - unchanged
+// Admin stats
 const Meeting = require('./models/Meeting');
 const User = require('./models/User');
 
@@ -222,33 +236,37 @@ app.get('/api/admin/stats', async (req, res) => {
         const totalUsers = await User.countDocuments();
         const totalMeetings = await Meeting.countDocuments();
         const activeMeetingsCount = Object.keys(users).length;
-        
-        res.send({
+
+        res.json({
             totalUsers,
             totalMeetings,
             activeMeetingsCount,
             storageUsage: '1.2 GB'
         });
     } catch (e) {
-        res.status(500).send(e);
+        res.status(500).json({ error: e.message });
     }
 });
 
-// Routes - unchanged
+// Routes
 const authRoutes = require('./routes/auth');
 const meetingRoutes = require('./routes/meeting');
 const contactRoutes = require('./routes/contact');
+
 app.use('/api/auth', authRoutes);
 app.use('/api/meeting', meetingRoutes);
 app.use('/api/contacts', contactRoutes);
 
-// Serve static frontend - unchanged
+// Serve frontend (SPA fallback)
 app.use(express.static(path.join(__dirname, '../frontend/dist')));
-app.use((req, res) => {
+app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
 });
 
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+    console.log(`Allowed origins: ${allowedOrigins.join(', ')}`);
+});
 
 module.exports = app;
