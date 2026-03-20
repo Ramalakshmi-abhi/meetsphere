@@ -129,21 +129,28 @@ export default function MeetingRoom() {
         });
 
         socket.on('user-joined', payload => {
-            const peer = addPeer(payload.signal, payload.callerID, stream);
-            peersRef.current.push({
-                peerID: payload.callerID,
-                peerName: payload.callerName,
-                peer,
-            });
-            setPeers(users => [...users, { peerID: payload.callerID, peerName: payload.callerName, peer }]);
+            const existingPeer = peersRef.current.find(p => p.peerID === payload.callerID);
+            if (existingPeer) {
+                existingPeer.peer.signal(payload.signal);
+            } else {
+                const peer = addPeer(payload.signal, payload.callerID, stream);
+                peersRef.current.push({
+                    peerID: payload.callerID,
+                    peerName: payload.callerName,
+                    peer,
+                });
+                setPeers(users => [...users, { peerID: payload.callerID, peerName: payload.callerName, peer }]);
+            }
         });
 
         socket.on('receiving-returned-signal', payload => {
             const item = peersRef.current.find(p => p.peerID === payload.id);
             if (item) {
-                item.peerName = payload.name;
+                if (item.peerName !== payload.name) {
+                    item.peerName = payload.name;
+                    setPeers(prev => prev.map(p => p.peerID === payload.id ? { ...p, peerName: payload.name } : p));
+                }
                 item.peer.signal(payload.signal);
-                setPeers(prev => prev.map(p => p.peerID === payload.id ? { ...p, peerName: payload.name } : p));
             }
         });
 
@@ -156,7 +163,11 @@ export default function MeetingRoom() {
         });
 
         return () => {
-            socket.disconnect();
+            socket.emit('leave-room');
+            socket.off('all-users');
+            socket.off('user-joined');
+            socket.off('receiving-returned-signal');
+            socket.off('user-disconnected');
         };
     }, [roomId, hasJoined]);
 
@@ -200,27 +211,12 @@ export default function MeetingRoom() {
     function createPeer(userToSignal, callerID, stream) {
         const peer = new Peer({
             initiator: true,
-            trickle: false,
+            trickle: true,
             stream,
             config: {
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:global.stun.twilio.com:3478' },
-                    { 
-                        urls: 'turn:openrelay.metered.ca:80',
-                        username: 'openrelayproject',
-                        credential: 'openrelayproject'
-                    },
-                    { 
-                        urls: 'turn:openrelay.metered.ca:443',
-                        username: 'openrelayproject',
-                        credential: 'openrelayproject'
-                    },
-                    { 
-                        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-                        username: 'openrelayproject',
-                        credential: 'openrelayproject'
-                    }
+                    { urls: 'stun:global.stun.twilio.com:3478' }
                 ]
             }
         });
@@ -235,27 +231,12 @@ export default function MeetingRoom() {
     function addPeer(incomingSignal, callerID, stream) {
         const peer = new Peer({
             initiator: false,
-            trickle: false,
+            trickle: true,
             stream,
             config: {
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:global.stun.twilio.com:3478' },
-                    { 
-                        urls: 'turn:openrelay.metered.ca:80',
-                        username: 'openrelayproject',
-                        credential: 'openrelayproject'
-                    },
-                    { 
-                        urls: 'turn:openrelay.metered.ca:443',
-                        username: 'openrelayproject',
-                        credential: 'openrelayproject'
-                    },
-                    { 
-                        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
-                        username: 'openrelayproject',
-                        credential: 'openrelayproject'
-                    }
+                    { urls: 'stun:global.stun.twilio.com:3478' }
                 ]
             }
         });

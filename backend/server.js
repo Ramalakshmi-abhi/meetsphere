@@ -158,6 +158,17 @@ io.on('connection', (socket) => {
         io.to(payload.roomID).emit('message-received', payload);
     });
 
+    socket.on('leave-room', () => {
+        const roomID = socketToRoom[socket.id];
+        let room = users[roomID];
+        if (room) {
+            room = room.filter(id => id !== socket.id);
+            users[roomID] = room;
+        }
+        delete socketToRoom[socket.id];
+        socket.broadcast.emit('user-disconnected', socket.id);
+    });
+
     socket.on('disconnect', () => {
         const roomID = socketToRoom[socket.id];
         let room = users[roomID];
