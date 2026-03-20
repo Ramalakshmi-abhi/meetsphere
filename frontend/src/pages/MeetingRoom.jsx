@@ -356,7 +356,7 @@ export default function MeetingRoom() {
     const muteParticipant = (userID) => {
         socket.emit('mute-user', { userID, roomID: roomId });
     };
-
+ 
     const removeParticipant = (userID) => {
         socket.emit('remove-user', { userID, roomID: roomId });
     };
