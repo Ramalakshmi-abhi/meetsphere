@@ -19,6 +19,10 @@
       "dest": "https://meetsphere-production-6ae4.up.railway.app/uploads/$1"
     },
     {
+      "src": "/socket.io/(.*)",
+      "dest": "https://meetsphere-production-6ae4.up.railway.app/socket.io/$1"
+    },
+    {
       "handle": "filesystem"
     },
     {
