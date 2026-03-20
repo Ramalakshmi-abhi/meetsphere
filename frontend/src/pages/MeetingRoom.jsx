@@ -18,7 +18,7 @@ const WhatsAppIcon = () => (
 
 const socket = io(BASE_URL, { 
     path: '/socket.io',
-    transports: ['websocket'], // CRITICAL: Force raw WebSockets to bypass load-balancer sticky-session crashes!
+    transports: ['websocket'],
     secure: true,
     reconnection: true,
     reconnectionAttempts: 20,
@@ -35,10 +35,9 @@ export default function MeetingRoom() {
     const location = useLocation();
     const initialState = location.state || {};
 
-    const { user } = useAuth(); // Note: user might be null for guests
+    const { user } = useAuth();
     const userName = user?.name || 'Guest';
 
-    
     const [stream, setStream] = useState(null);
     const [peers, setPeers] = useState([]);
     const [micOn, setMicOn] = useState(initialState.mic !== undefined ? initialState.mic : true);
@@ -55,7 +54,6 @@ export default function MeetingRoom() {
     const [finalName, setFinalName] = useState(userName);
     const [hostBranding, setHostBranding] = useState(null);
 
-    
     const userVideo = useRef();
     const peersRef = useRef([]);
     const mediaRecorderRef = useRef(null);
@@ -65,7 +63,6 @@ export default function MeetingRoom() {
         if (!hasJoined) {
             if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
                 navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(currentStream => {
-                    // Enforce routing state overrides immediately
                     if (initialState.camera === false && currentStream.getVideoTracks()[0]) {
                         currentStream.getVideoTracks()[0].enabled = false;
                     }
@@ -79,14 +76,13 @@ export default function MeetingRoom() {
                     }
                 }).catch(err => {
                     console.error("Media error:", err);
-                    alert("Camera or Microphone access was denied or not found. Please allow permissions in your browser address bar.");
+                    alert("Camera or Microphone access was denied or not found. Please allow permissions.");
                 });
             } else {
                 console.error("navigator.mediaDevices is undefined");
-                alert("Camera and Microphone are not supported on this browser context (try using localhost or https).");
+                alert("Camera and Microphone not supported in this context (try HTTPS/localhost).");
             }
-            
-            // Still fetch details for the waiting room
+
             const fetchMeetingDetails = async () => {
                 try {
                     const res = await api.get(`/api/meeting/${roomId}`);
@@ -105,7 +101,6 @@ export default function MeetingRoom() {
             return;
         }
 
-        // --- Logic for when the user HAS JOINED ---
         console.log("User joining meeting room officially...");
         
         socket.emit('join-room', roomId, socket.id, finalName);
@@ -169,10 +164,8 @@ export default function MeetingRoom() {
             socket.off('receiving-returned-signal');
             socket.off('user-disconnected');
         };
-    }, [roomId, hasJoined]);
+    }, [roomId, hasJoined, stream]);
 
-    // Continuously ensure the stream is attached to the local video element,
-    // especially after the DOM swaps from the waiting room to the meeting room.
     useEffect(() => {
         if (userVideo.current) {
             if (screenStream) {
@@ -192,13 +185,11 @@ export default function MeetingRoom() {
             setFinalName(tempGuestName);
         }
 
-        // Enforce Mute on Entry
         if (meetingOptions?.muteOnEntry && stream) {
             stream.getAudioTracks()[0].enabled = false;
             setMicOn(false);
         }
 
-        // Enforce Video Mute on Entry
         if (meetingOptions?.videoMuteOnEntry && stream) {
             stream.getVideoTracks()[0].enabled = false;
             setVideoOn(false);
@@ -206,7 +197,6 @@ export default function MeetingRoom() {
 
         setHasJoined(true);
     };
-
 
     function createPeer(userToSignal, callerID, stream) {
         const peer = new Peer({
@@ -216,13 +206,43 @@ export default function MeetingRoom() {
             config: {
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:global.stun.twilio.com:3478' }
-                ]
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' },
+                    { urls: 'stun:global.stun.twilio.com:3478' },
+                    {
+                        urls: 'turn:openrelay.metered.ca:80',
+                        username: 'openrelayproject',
+                        credential: 'openrelayproject'
+                    },
+                    {
+                        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                        username: 'openrelayproject',
+                        credential: 'openrelayproject'
+                    },
+                ],
+                iceTransportPolicy: 'all'
             }
         });
 
         peer.on('signal', signal => {
+            console.log('SIGNAL emitted to', userToSignal, ':', signal.type || 'candidate');
             socket.emit('sending-signal', { userToSignal, callerID, signal });
+        });
+
+        peer.on('connect', () => {
+            console.log('PEER CONNECTED SUCCESSFULLY to', userToSignal);
+        });
+
+        peer.on('stream', remoteStream => {
+            console.log('Received remote STREAM from', userToSignal);
+        });
+
+        peer.on('iceStateChange', state => {
+            console.log('ICE state for', userToSignal, ':', state);
+        });
+
+        peer.on('error', err => {
+            console.error('Peer error for', userToSignal, ':', err);
         });
 
         return peer;
@@ -236,13 +256,43 @@ export default function MeetingRoom() {
             config: {
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:global.stun.twilio.com:3478' }
-                ]
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' },
+                    { urls: 'stun:global.stun.twilio.com:3478' },
+                    {
+                        urls: 'turn:openrelay.metered.ca:80',
+                        username: 'openrelayproject',
+                        credential: 'openrelayproject'
+                    },
+                    {
+                        urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+                        username: 'openrelayproject',
+                        credential: 'openrelayproject'
+                    },
+                ],
+                iceTransportPolicy: 'all'
             }
         });
 
         peer.on('signal', signal => {
+            console.log('SIGNAL returned (answer/candidate) to', callerID);
             socket.emit('returning-signal', { signal, callerID });
+        });
+
+        peer.on('connect', () => {
+            console.log('PEER CONNECTED SUCCESSFULLY from incoming', callerID);
+        });
+
+        peer.on('stream', remoteStream => {
+            console.log('Received remote STREAM from incoming', callerID);
+        });
+
+        peer.on('iceStateChange', state => {
+            console.log('ICE state for incoming', callerID, ':', state);
+        });
+
+        peer.on('error', err => {
+            console.error('Peer error for incoming', callerID, ':', err);
         });
 
         peer.signal(incomingSignal);
@@ -370,7 +420,6 @@ export default function MeetingRoom() {
             mediaRecorderRef.current.onstop = async () => {
                 const blob = new Blob(recordedChunks.current, { type: 'video/webm' });
                 
-                // Show a toast or log indicating upload started
                 console.log('Uploading recording to server...');
                 
                 const formData = new FormData();
@@ -385,7 +434,6 @@ export default function MeetingRoom() {
                     alert('Recording successfully saved to the cloud!');
                 } catch (error) {
                     console.error('Failed to upload recording:', error);
-                    // Fallback to local download if upload fails
                     alert('Failed to save to cloud. Downloading locally instead.');
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -456,7 +504,6 @@ export default function MeetingRoom() {
         
         const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
         
-        // Use window.location.href to safely open default email client
         window.location.href = mailtoLink;
     };
 
@@ -529,7 +576,7 @@ export default function MeetingRoom() {
                         <div className="video-label">You</div>
                     </div>
                     {peers.map((peerObj, index) => (
-                        <VideoComponent key={peerObj.peerID} peer={peerObj.peer} />
+                        <VideoComponent key={peerObj.peerID} peer={peerObj.peer} peerName={peerObj.peerName} />
                     ))}
                 </div>
                 
@@ -634,27 +681,31 @@ export default function MeetingRoom() {
     );
 }
 
-const VideoComponent = ({ peer }) => {
+const VideoComponent = ({ peer, peerName }) => {
     const ref = useRef();
 
     useEffect(() => {
         if (!peer) return;
-        // Handle pre-existing streams explicitly (React race condition fix)
+
         if (peer.streams && peer.streams.length > 0) {
+            console.log('Attaching pre-existing remote stream');
             ref.current.srcObject = peer.streams[0];
-        } else if (peer._remoteStreams && peer._remoteStreams.length > 0) {
-            ref.current.srcObject = peer._remoteStreams[0];
         }
 
         peer.on('stream', stream => {
+            console.log('on stream event fired - attaching remote video');
             ref.current.srcObject = stream;
         });
+
+        return () => {
+            peer.off('stream');
+        };
     }, [peer]);
 
     return (
         <div className="video-card">
             <video playsInline autoPlay ref={ref} />
-            <div className="video-label">{peer.peerName || 'User'}</div>
+            <div className="video-label">{peerName || 'User'}</div>
         </div>
     );
 };
