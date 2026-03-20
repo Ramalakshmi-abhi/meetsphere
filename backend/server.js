@@ -7,16 +7,27 @@ const cors = require('cors');
 
 const app = express();
 const server = http.createServer(app);
+
+const allowedOrigins = [
+    "http://localhost:5173", 
+    "http://127.0.0.1:5173",
+    "https://meetsphere-ten.vercel.app",
+    "https://meetsphere.vercel.app"
+];
+
 const io = socketIo(server, {
     cors: {
-        origin: "*",
+        origin: allowedOrigins,
         methods: ["GET", "POST"]
     }
 });
 
 // Middleware
 const path = require('path');
-app.use(cors());
+app.use(cors({
+    origin: allowedOrigins,
+    credentials: true
+}));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
