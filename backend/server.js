@@ -31,7 +31,7 @@ app.use(cors({
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// DB Connection logic (Cached for Serverless)
+// DB Connection logic (Cached for Serverless) - unchanged
 let cached = global.mongoose;
 
 if (!cached) {
@@ -50,7 +50,6 @@ const connectDB = async () => {
 
         console.log('Creating new MongoDB connection promise...');
         
-        // Hard timeout for the connection attempt
         const timeoutPromise = new Promise((_, reject) => 
             setTimeout(() => reject(new Error('Mongoose connection timed out (Hard Limit)')), 15000)
         );
@@ -67,7 +66,7 @@ const connectDB = async () => {
     try {
         cached.conn = await cached.promise;
     } catch (e) {
-        cached.promise = null; // Reset promise so we can try again
+        cached.promise = null;
         console.error('CRITICAL: MongoDB connection error:', e.message);
         throw e;
     }
@@ -75,10 +74,9 @@ const connectDB = async () => {
     return cached.conn;
 };
 
-// Initial connection attempt (swallowed to let health check report it)
 connectDB().catch(() => {});
 
-// Health check route
+// Health check route - unchanged
 app.get('/api/health', async (req, res) => {
     let dbStatus = 'disconnected';
     try {
@@ -96,7 +94,7 @@ app.get('/api/health', async (req, res) => {
     });
 });
 
-// Email Diagnostic Route
+// Email Diagnostic Route - unchanged
 const { sendInvitation } = require('./config/email');
 app.get('/api/health/email', async (req, res) => {
     try {
@@ -111,11 +109,13 @@ app.get('/api/health/email', async (req, res) => {
     }
 });
 
-const users = {};
-const socketToRoom = {};
-const socketToName = {};
+const users = {};          // roomID → [socket.id, ...]
+const socketToRoom = {};   // socket.id → roomID
+const socketToName = {};   // socket.id → userName
 
 io.on('connection', (socket) => {
+    console.log(`New client connected: ${socket.id}`);
+
     socket.on('join-room', (roomID, socketId, userName) => {
         if (users[roomID]) {
             users[roomID].push(socket.id);
@@ -125,12 +125,14 @@ io.on('connection', (socket) => {
         socketToRoom[socket.id] = roomID;
         socketToName[socket.id] = userName || 'Guest';
         
-        // Return array of objects containing both id and name
         const usersInThisRoom = users[roomID]
             .filter(id => id !== socket.id)
             .map(id => ({ id, name: socketToName[id] }));
 
         socket.emit('all-users', usersInThisRoom);
+
+        // Optional: Notify others that someone joined (useful for UI)
+        socket.to(roomID).emit('user-joined-room', { id: socket.id, name: socketToName[socket.id] });
     });
 
     socket.on('check-host', (roomID) => {
@@ -140,6 +142,20 @@ io.on('connection', (socket) => {
             socket.emit('host-check-result', false);
         }
     });
+
+    // ===================== NEW: ICE Candidate forwarding =====================
+    socket.on('ice-candidate', (payload) => {
+        // payload should be: { target: otherSocketId, candidate: RTCIceCandidateInit }
+        const { target, candidate } = payload;
+        if (target && candidate) {
+            io.to(target).emit('ice-candidate', {
+                from: socket.id,
+                candidate
+            });
+            console.log(`ICE candidate forwarded from ${socket.id} to ${target}`);
+        }
+    });
+    // ========================================================================
 
     socket.on('sending-signal', payload => {
         io.to(payload.userToSignal).emit('user-joined', { 
@@ -170,29 +186,34 @@ io.on('connection', (socket) => {
     });
 
     socket.on('leave-room', () => {
-        const roomID = socketToRoom[socket.id];
-        let room = users[roomID];
-        if (room) {
-            room = room.filter(id => id !== socket.id);
-            users[roomID] = room;
-        }
-        delete socketToRoom[socket.id];
-        socket.broadcast.emit('user-disconnected', socket.id);
+        handleUserDisconnect(socket);
     });
 
     socket.on('disconnect', () => {
-        const roomID = socketToRoom[socket.id];
-        let room = users[roomID];
-        if (room) {
-            room = room.filter(id => id !== socket.id);
-            users[roomID] = room;
-        }
-        delete socketToRoom[socket.id];
-        socket.broadcast.emit('user-disconnected', socket.id);
+        handleUserDisconnect(socket);
     });
 });
 
-// Admin Stats API
+function handleUserDisconnect(socket) {
+    const roomID = socketToRoom[socket.id];
+    if (roomID) {
+        let room = users[roomID];
+        if (room) {
+            users[roomID] = room.filter(id => id !== socket.id);
+            if (users[roomID].length === 0) {
+                delete users[roomID];
+            }
+        }
+        delete socketToRoom[socket.id];
+        delete socketToName[socket.id];
+
+        // Notify others in room
+        socket.to(roomID).emit('user-disconnected', socket.id);
+        console.log(`User ${socket.id} left room ${roomID}`);
+    }
+}
+
+// Admin Stats API - unchanged
 const Meeting = require('./models/Meeting');
 const User = require('./models/User');
 
@@ -213,7 +234,7 @@ app.get('/api/admin/stats', async (req, res) => {
     }
 });
 
-// Routes
+// Routes - unchanged
 const authRoutes = require('./routes/auth');
 const meetingRoutes = require('./routes/meeting');
 const contactRoutes = require('./routes/contact');
@@ -221,7 +242,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/meeting', meetingRoutes);
 app.use('/api/contacts', contactRoutes);
 
-// Serve static frontend
+// Serve static frontend - unchanged
 app.use(express.static(path.join(__dirname, '../frontend/dist')));
 app.use((req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
