@@ -16,14 +16,16 @@ const WhatsAppIcon = () => (
     </svg>
 );
 
-const socket = io(BASE_URL, { 
+// Updated socket init: Allow polling fallback (essential for Vercel serverless)
+const socket = io(BASE_URL, {
     path: '/socket.io',
-    transports: ['websocket'],
-    secure: true,
     reconnection: true,
     reconnectionAttempts: 20,
     reconnectionDelay: 2000,
     timeout: 20000,
+    secure: true,
+    autoConnect: true,
+    forceNew: false,
     extraHeaders: {
         'Bypass-Tunnel-Reminder': 'true'
     }
@@ -58,6 +60,27 @@ export default function MeetingRoom() {
     const peersRef = useRef([]);
     const mediaRecorderRef = useRef(null);
     const recordedChunks = useRef([]);
+
+    useEffect(() => {
+        // Log socket connection status for debugging
+        socket.on('connect', () => {
+            console.log('Socket.IO connected successfully!');
+        });
+
+        socket.on('connect_error', (err) => {
+            console.error('Socket.IO connection error:', err.message);
+        });
+
+        socket.on('disconnect', (reason) => {
+            console.log('Socket.IO disconnected:', reason);
+        });
+
+        return () => {
+            socket.off('connect');
+            socket.off('connect_error');
+            socket.off('disconnect');
+        };
+    }, []);
 
     useEffect(() => {
         if (!hasJoined) {
@@ -106,6 +129,7 @@ export default function MeetingRoom() {
         socket.emit('join-room', roomId, socket.id, finalName);
 
         socket.on('all-users', users => {
+            console.log('All users received:', users);
             const currentPeers = [];
             users.forEach(userObj => {
                 const peer = createPeer(userObj.id, socket.id, stream);
@@ -124,6 +148,7 @@ export default function MeetingRoom() {
         });
 
         socket.on('user-joined', payload => {
+            console.log('User joined signal:', payload);
             const existingPeer = peersRef.current.find(p => p.peerID === payload.callerID);
             if (existingPeer) {
                 existingPeer.peer.signal(payload.signal);
@@ -139,6 +164,7 @@ export default function MeetingRoom() {
         });
 
         socket.on('receiving-returned-signal', payload => {
+            console.log('Received returned signal:', payload);
             const item = peersRef.current.find(p => p.peerID === payload.id);
             if (item) {
                 if (item.peerName !== payload.name) {
@@ -150,6 +176,7 @@ export default function MeetingRoom() {
         });
 
         socket.on('user-disconnected', userId => {
+            console.log('User disconnected:', userId);
             const peerObj = peersRef.current.find(p => p.peerID === userId);
             if (peerObj) peerObj.peer.destroy();
             const filteredPeers = peersRef.current.filter(p => p.peerID !== userId);
@@ -575,7 +602,7 @@ export default function MeetingRoom() {
                         {screenStream && <div className="sharing-badge">Sharing Screen</div>}
                         <div className="video-label">You</div>
                     </div>
-                    {peers.map((peerObj, index) => (
+                    {peers.map((peerObj) => (
                         <VideoComponent key={peerObj.peerID} peer={peerObj.peer} peerName={peerObj.peerName} />
                     ))}
                 </div>
