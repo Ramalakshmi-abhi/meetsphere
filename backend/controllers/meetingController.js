@@ -3,8 +3,21 @@ const { sendInvitation } = require('../config/email');
 
 exports.scheduleMeeting = async (req, res) => {
     try {
+        const mongoose = require('mongoose');
         const { title, startTime, participants, passcode, options, isLocked } = req.body;
         
+        if (mongoose.connection.readyState !== 1) {
+            const meetingId = passcode || Math.random().toString(36).substring(2, 10);
+            return res.status(201).send({
+                _id: new mongoose.Types.ObjectId(),
+                meetingId,
+                title: title || 'Offline Demo',
+                startTime: startTime || new Date(),
+                host: req.user._id,
+                emailWarnings: []
+            });
+        }
+
         if (passcode) {
             const existingMeeting = await Meeting.findOne({
                 $or: [{ meetingId: passcode }, { passcode: passcode }]
@@ -69,6 +82,8 @@ exports.scheduleMeeting = async (req, res) => {
 
 exports.getMeetings = async (req, res) => {
     try {
+        const mongoose = require('mongoose');
+        if (mongoose.connection.readyState !== 1) return res.send([]);
         const meetings = await Meeting.find({ host: req.user._id }).sort({ startTime: 1 }).populate('host', 'name profilePicture branding');
         res.send(meetings);
     } catch (e) {
@@ -79,6 +94,10 @@ exports.getMeetings = async (req, res) => {
 
 exports.getMeeting = async (req, res) => {
     try {
+        const mongoose = require('mongoose');
+        if (mongoose.connection.readyState !== 1) {
+            return res.send({ _id: new mongoose.Types.ObjectId(), meetingId: req.params.meetingId, host: { name: 'Presentation Demo', branding: {} } });
+        }
         const meeting = await Meeting.findOne({ 
             $or: [
                 { meetingId: req.params.meetingId },

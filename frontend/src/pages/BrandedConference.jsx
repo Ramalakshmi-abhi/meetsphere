@@ -141,7 +141,7 @@ const BrandedConference = () => {
                         <div className="mock-header">
                             <div className="mock-logo">
                                 {previewLogoUrl ? (
-                                    <img src={previewLogoUrl.startsWith('blob:') ? previewLogoUrl : `https://meetsphere-production-6ae4.up.railway.app${previewLogoUrl}`} alt="Logo" style={{ height: '24px', borderRadius: '4px', objectFit: 'contain' }} />
+                                    <img src={previewLogoUrl.startsWith('blob:') ? previewLogoUrl : `${api.defaults.baseURL || api.defaults.baseURL || 'http://localhost:5000'}${previewLogoUrl}`} alt="Logo" style={{ height: '24px', borderRadius: '4px', objectFit: 'contain' }} />
                                 ) : (
                                     <div className="dot" style={{ background: branding.primaryColor }}></div>
                                 )}

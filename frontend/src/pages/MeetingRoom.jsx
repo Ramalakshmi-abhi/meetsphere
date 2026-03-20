@@ -18,7 +18,7 @@ const WhatsAppIcon = () => (
 
 const socket = io(BASE_URL, { 
     path: '/socket.io',
-    transports: ['polling', 'websocket'],
+    transports: ['websocket'], // CRITICAL: Force raw WebSockets to bypass load-balancer sticky-session crashes!
     secure: true,
     reconnection: true,
     reconnectionAttempts: 20,

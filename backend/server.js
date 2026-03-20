@@ -199,6 +199,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api/meeting', meetingRoutes);
 app.use('/api/contacts', contactRoutes);
 
+// Serve static frontend
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
+app.use((req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+});
+
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
