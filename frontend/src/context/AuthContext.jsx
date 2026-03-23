@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import api from '../api';
+import api, { withBackendRetry } from '../api';
 
 const AuthContext = createContext();
 
@@ -20,24 +20,37 @@ export const AuthProvider = ({ children }) => {
 
     const fetchProfile = async () => {
         try {
-            const res = await api.get('/api/auth/profile');
+            const res = await withBackendRetry(
+                () => api.get('/api/auth/profile'),
+                { warmup: true }
+            );
             setUser(res.data);
-        } catch {
-            localStorage.removeItem('token');
+        } catch (err) {
+            if (err?.response?.status === 401) {
+                localStorage.removeItem('token');
+            } else {
+                console.error('Profile fetch failed:', err);
+            }
         } finally {
             setLoading(false);
         }
     };
 
     const login = async (email, password) => {
-        const res = await api.post('/api/auth/login', { email, password });
+        const res = await withBackendRetry(
+            () => api.post('/api/auth/login', { email, password }),
+            { warmup: true }
+        );
         localStorage.setItem('token', res.data.token);
         setUser(res.data.user);
         return res.data;
     };
 
     const register = async (name, email, password) => {
-        const res = await api.post('/api/auth/register', { name, email, password });
+        const res = await withBackendRetry(
+            () => api.post('/api/auth/register', { name, email, password }),
+            { warmup: true }
+        );
         localStorage.setItem('token', res.data.token);
         setUser(res.data.user);
         return res.data;

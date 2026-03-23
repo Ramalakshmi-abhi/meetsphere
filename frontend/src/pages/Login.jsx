@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
+import { getApiErrorMessage } from '../api';
 import { Mail, Lock, LogIn } from 'lucide-react';
 import './Auth.css';
 
@@ -9,6 +10,7 @@ export default function Login() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
+    const [submitting, setSubmitting] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
@@ -20,12 +22,15 @@ export default function Login() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setSubmitting(true);
+        setError('');
         try {
             await login(email, password);
             navigate(redirectPath);
-
         } catch (err) {
-            setError(err.response?.data?.error || 'Login failed');
+            setError(getApiErrorMessage(err, 'Login failed'));
+        } finally {
+            setSubmitting(false);
         }
     };
 
@@ -56,8 +61,8 @@ export default function Login() {
                             required 
                         />
                     </div>
-                    <button type="submit" className="auth-btn">
-                        <LogIn size={20} /> Login
+                    <button type="submit" className="auth-btn" disabled={submitting}>
+                        <LogIn size={20} /> {submitting ? 'Connecting...' : 'Login'}
                     </button>
                 </form>
                 <p className="auth-footer">
