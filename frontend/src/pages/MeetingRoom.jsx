@@ -17,6 +17,24 @@ const WhatsAppIcon = () => (
     </svg>
 );
 
+const attachMediaStream = (element, stream, { muted = false } = {}) => {
+    if (!element || !stream) return;
+
+    if (element.srcObject !== stream) {
+        element.srcObject = stream;
+    }
+
+    element.muted = muted;
+    element.volume = muted ? 0 : 1;
+
+    const playPromise = element.play?.();
+    if (playPromise?.catch) {
+        playPromise.catch((error) => {
+            console.warn('Media autoplay was blocked or delayed:', error);
+        });
+    }
+};
+
 const socket = io(SOCKET_URL, {
     path: '/socket.io',
     transports: ['polling', 'websocket'],
@@ -70,7 +88,7 @@ export default function MeetingRoom() {
         streamRef.current = nextStream;
         setStream(nextStream);
         if (userVideo.current) {
-            userVideo.current.srcObject = screenStream || nextStream || null;
+            attachMediaStream(userVideo.current, screenStream || nextStream || null, { muted: true });
         }
     };
 
@@ -212,9 +230,9 @@ export default function MeetingRoom() {
     useEffect(() => {
         if (userVideo.current) {
             if (screenStream) {
-                userVideo.current.srcObject = screenStream;
+                attachMediaStream(userVideo.current, screenStream, { muted: true });
             } else if (stream) {
-                userVideo.current.srcObject = stream;
+                attachMediaStream(userVideo.current, stream, { muted: true });
             }
         }
     }, [stream, screenStream, hasJoined]);
@@ -538,7 +556,7 @@ export default function MeetingRoom() {
             if (!streamRef.current) {
                 updateLocalStream(targetStream);
             } else if (userVideo.current && !screenStream) {
-                userVideo.current.srcObject = targetStream;
+                attachMediaStream(userVideo.current, targetStream, { muted: true });
             }
 
             peersRef.current.forEach(({ peer }) => {
@@ -1088,14 +1106,14 @@ const VideoComponent = ({ peer, peerName }) => {
         const handleStream = (stream) => {
             console.log('on stream event fired - attaching remote video');
             if (ref.current) {
-                ref.current.srcObject = stream;
+                attachMediaStream(ref.current, stream);
             }
         };
 
         if (peer.streams && peer.streams.length > 0) {
             console.log('Attaching pre-existing remote stream');
             if (ref.current) {
-                ref.current.srcObject = peer.streams[0];
+                attachMediaStream(ref.current, peer.streams[0]);
             }
         }
 
