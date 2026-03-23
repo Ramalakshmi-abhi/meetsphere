@@ -7,3 +7,5 @@ build/
 
 .vercel
 .env*.local
+backend/cloudflare.txt
+backend/uploads/

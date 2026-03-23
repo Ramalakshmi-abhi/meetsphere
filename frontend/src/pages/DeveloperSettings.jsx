@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Key, Zap, Copy, Trash2 } from 'lucide-react';
-import axios from 'axios';
+import api from '../api';
 import './MenuPages.css';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const DeveloperSettings = () => {
     const navigate = useNavigate();
@@ -23,11 +21,8 @@ const DeveloperSettings = () => {
 
     const fetchProfile = async () => {
         try {
-            const token = localStorage.getItem('token');
-            if (!token) return;
-            const response = await axios.get(`${API_URL}/auth/profile`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            if (!localStorage.getItem('token')) return;
+            const response = await api.get('/api/auth/profile');
             if (response.data.developerSettings) {
                 setApiKey(response.data.developerSettings.apiKey || '');
                 setSecretKey(response.data.developerSettings.secretKey || '');
@@ -52,15 +47,12 @@ const DeveloperSettings = () => {
     };
 
     const handleRegenerateKeys = async () => {
-        const confirm = window.confirm("Are you sure? This will invalidate any old keys currently in use.");
-        if (!confirm) return;
+        const confirmed = window.confirm("Are you sure? This will invalidate any old keys currently in use.");
+        if (!confirmed) return;
         
         setRegenerating(true);
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.post(`${API_URL}/auth/developer/keys`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.post('/api/auth/developer/keys', {});
             setApiKey(response.data.apiKey);
             setSecretKey(response.data.secretKey);
             showMessage('Keys regenerated successfully!');
@@ -75,10 +67,7 @@ const DeveloperSettings = () => {
     const handleAddWebhook = async () => {
         if (!newWebhookUrl) return;
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.post(`${API_URL}/auth/developer/webhooks`, { url: newWebhookUrl }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.post('/api/auth/developer/webhooks', { url: newWebhookUrl });
             setWebhooks(response.data);
             setNewWebhookUrl('');
             setShowWebhookInput(false);
@@ -91,10 +80,7 @@ const DeveloperSettings = () => {
 
     const handleDeleteWebhook = async (id) => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.delete(`${API_URL}/auth/developer/webhooks/${id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await api.delete(`/api/auth/developer/webhooks/${id}`);
             setWebhooks(response.data);
             showMessage('Webhook removed successfully!');
         } catch (error) {

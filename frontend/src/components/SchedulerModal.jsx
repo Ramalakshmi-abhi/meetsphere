@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import api from '../api';
-import { X, Calendar, Clock, Users, Send, MessageCircle } from 'lucide-react';
+import { X, Calendar, Clock, Users, Send } from 'lucide-react';
 import './SchedulerModal.css';
 
 const WhatsAppIcon = () => (
@@ -41,7 +41,7 @@ export default function SchedulerModal({ closeModal }) {
                 title: title || 'Scheduled Meeting',
                 startTime: isoStartTime,
                 participants: participantList,
-                advancedOptions
+                options: advancedOptions
             });
             if (res.data.emailWarnings && res.data.emailWarnings.length > 0) {
                 alert('Meeting scheduled, BUT EMAIL FAILED! Error:\n' + res.data.emailWarnings.join('\n'));

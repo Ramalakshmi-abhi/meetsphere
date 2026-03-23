@@ -38,7 +38,7 @@ const JoinMeeting = () => {
                 </form>
                 
                 <div className="join-footer">
-                    <span>Don't have a code? <button onClick={() => navigate('/schedule')}>Schedule a meeting</button></span>
+                    <span>Don&apos;t have a code? <button onClick={() => navigate('/schedule')}>Schedule a meeting</button></span>
                 </div>
             </div>
         </div>

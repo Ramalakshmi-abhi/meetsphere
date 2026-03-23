@@ -12,17 +12,17 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (token) {
-            fetchProfile(token);
+            fetchProfile();
         } else {
             setLoading(false);
         }
     }, []);
 
-    const fetchProfile = async (token) => {
+    const fetchProfile = async () => {
         try {
             const res = await api.get('/api/auth/profile');
             setUser(res.data);
-        } catch (err) {
+        } catch {
             localStorage.removeItem('token');
         } finally {
             setLoading(false);

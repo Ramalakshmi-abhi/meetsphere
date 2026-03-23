@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 
 import { useAuth } from '../context/AuthContext';
-import { Mail, Lock, LogIn, UserPlus } from 'lucide-react';
+import { Mail, Lock, LogIn } from 'lucide-react';
 import './Auth.css';
 
 export default function Login() {
@@ -61,7 +61,7 @@ export default function Login() {
                     </button>
                 </form>
                 <p className="auth-footer">
-                    Don't have an account? <Link to="/signup">Sign up</Link>
+                    Don&apos;t have an account? <Link to="/signup">Sign up</Link>
                 </p>
             </div>
         </div>

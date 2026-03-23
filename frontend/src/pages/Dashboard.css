@@ -47,6 +47,17 @@
     line-height: 1.6;
 }
 
+.hero-error {
+    margin-top: 1rem;
+    color: #fef2f2;
+    background: rgba(127, 29, 29, 0.35);
+    border: 1px solid rgba(254, 202, 202, 0.35);
+    border-radius: 1rem;
+    padding: 0.875rem 1rem;
+    max-width: 720px;
+    font-weight: 600;
+}
+
 .actions {
     display: flex;
     gap: 1.5rem;

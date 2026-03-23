@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Zap, Shield, Mic, MicOff, Camera, CameraOff, Settings } from 'lucide-react';
 import api from '../api';
+import { describeMediaError, getMediaTrack, requestMediaStream, requestMediaTrack, stopMediaStream } from '../utils/media';
 import './MenuPages.css';
 
 const QuickMeeting = () => {
@@ -16,71 +17,174 @@ const QuickMeeting = () => {
     // Live camera preview state
     const [stream, setStream] = useState(null);
     const videoRef = useRef(null);
+    const streamRef = useRef(null);
 
     const [loadingHardware, setLoadingHardware] = useState(true);
     const [hardwareError, setHardwareError] = useState(null);
 
+    const getErrorMessage = (err, fallback) => (
+        err?.response?.data?.error ||
+        err?.message ||
+        fallback
+    );
+
+    const replacePreviewStream = (nextStream) => {
+        if (streamRef.current && streamRef.current !== nextStream) {
+            stopMediaStream(streamRef.current);
+        }
+
+        streamRef.current = nextStream;
+        setStream(nextStream);
+
+        if (videoRef.current) {
+            videoRef.current.srcObject = nextStream;
+        }
+    };
+
     // Initialize media stream on mount
     useEffect(() => {
-        let activeStream = null;
         const initMedia = async () => {
+            setLoadingHardware(true);
             try {
-                activeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                setStream(activeStream);
+                const { stream: initialStream, errors } = await requestMediaStream({ video: true, audio: true });
+                replacePreviewStream(initialStream);
+                setSettings((s) => ({
+                    ...s,
+                    camera: initialStream.getVideoTracks().length > 0,
+                    mic: initialStream.getAudioTracks().length > 0,
+                }));
+                setHardwareError(describeMediaError({ errors, requestedVideo: true, requestedAudio: true }));
             } catch (err) {
                 console.error("Failed to access camera/mic for preview:", err);
                 setSettings(s => ({ ...s, camera: false, mic: false }));
-                setHardwareError("Please allow camera & microphone permissions.");
+                setHardwareError(describeMediaError({ error: err, requestedVideo: true, requestedAudio: true }));
             } finally {
                 setLoadingHardware(false);
             }
         };
 
-        if (navigator.mediaDevices) {
-            initMedia();
-        } else {
-            setLoadingHardware(false);
-            setHardwareError("Hardware not supported.");
-        }
+        initMedia();
 
         return () => {
-            // Clean up the tracks when leaving the Quick Meeting page
-            if (activeStream) {
-                activeStream.getTracks().forEach(t => t.stop());
-            }
+            stopMediaStream(streamRef.current);
         };
     }, []);
 
-    const retryMedia = async () => {
+    const retryMedia = async (requested = { camera: true, mic: true }) => {
         setLoadingHardware(true);
         setHardwareError(null);
         try {
-            const activeStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            setStream(activeStream);
-            setSettings(s => ({ ...s, camera: true, mic: true }));
+            const { stream: nextStream, errors } = await requestMediaStream({
+                video: requested.camera,
+                audio: requested.mic,
+            });
+
+            replacePreviewStream(nextStream);
+            setSettings((s) => ({
+                ...s,
+                camera: nextStream.getVideoTracks().length > 0,
+                mic: nextStream.getAudioTracks().length > 0,
+            }));
+            setHardwareError(describeMediaError({
+                errors,
+                requestedVideo: requested.camera,
+                requestedAudio: requested.mic,
+            }));
         } catch (err) {
             console.error("Retry failed:", err);
-            setHardwareError("Please allow camera & microphone permissions.");
-            setSettings(s => ({ ...s, camera: false, mic: false }));
+            setHardwareError(describeMediaError({
+                error: err,
+                requestedVideo: requested.camera,
+                requestedAudio: requested.mic,
+            }));
         } finally {
             setLoadingHardware(false);
         }
     };
 
-    const toggleCamera = () => {
-        if (!stream) {
-            if (!settings.camera) retryMedia();
+    const toggleCamera = async () => {
+        if (settings.camera) {
+            const videoTrack = getMediaTrack(streamRef.current, 'video');
+            if (videoTrack) {
+                videoTrack.enabled = false;
+            }
+            setSettings((s) => ({ ...s, camera: false }));
             return;
         }
-        setSettings(s => ({ ...s, camera: !s.camera }));
+
+        setLoadingHardware(true);
+        setHardwareError(null);
+
+        try {
+            const existingVideoTrack = getMediaTrack(streamRef.current, 'video');
+            if (existingVideoTrack) {
+                existingVideoTrack.enabled = true;
+                setSettings((s) => ({ ...s, camera: true }));
+                return;
+            }
+
+            if (!streamRef.current) {
+                await retryMedia({ camera: true, mic: settings.mic });
+                return;
+            }
+
+            const newTrack = await requestMediaTrack('video');
+            if (!newTrack) {
+                throw new Error('No camera track returned.');
+            }
+
+            streamRef.current.addTrack(newTrack);
+            if (videoRef.current) {
+                videoRef.current.srcObject = streamRef.current;
+            }
+            setSettings((s) => ({ ...s, camera: true }));
+        } catch (err) {
+            console.error('Camera enable failed:', err);
+            setHardwareError(describeMediaError({ error: err, requestedVideo: true }));
+        } finally {
+            setLoadingHardware(false);
+        }
     };
 
-    const toggleMic = () => {
-        if (!stream) {
-            if (!settings.mic) retryMedia();
+    const toggleMic = async () => {
+        if (settings.mic) {
+            const audioTrack = getMediaTrack(streamRef.current, 'audio');
+            if (audioTrack) {
+                audioTrack.enabled = false;
+            }
+            setSettings((s) => ({ ...s, mic: false }));
             return;
         }
-        setSettings(s => ({ ...s, mic: !s.mic }));
+
+        setLoadingHardware(true);
+        setHardwareError(null);
+
+        try {
+            const existingAudioTrack = getMediaTrack(streamRef.current, 'audio');
+            if (existingAudioTrack) {
+                existingAudioTrack.enabled = true;
+                setSettings((s) => ({ ...s, mic: true }));
+                return;
+            }
+
+            if (!streamRef.current) {
+                await retryMedia({ camera: settings.camera, mic: true });
+                return;
+            }
+
+            const newTrack = await requestMediaTrack('audio');
+            if (!newTrack) {
+                throw new Error('No microphone track returned.');
+            }
+
+            streamRef.current.addTrack(newTrack);
+            setSettings((s) => ({ ...s, mic: true }));
+        } catch (err) {
+            console.error('Microphone enable failed:', err);
+            setHardwareError(describeMediaError({ error: err, requestedAudio: true }));
+        } finally {
+            setLoadingHardware(false);
+        }
     };
 
     // Ensure the stream is strictly attached whenever the video DOM element becomes available
@@ -103,10 +207,6 @@ const QuickMeeting = () => {
 
     const startInstant = async () => {
         setLoading(true);
-        // Stop the local preview tracks so MeetingRoom can grab them fresh
-        if (stream) {
-            stream.getTracks().forEach(t => t.stop());
-        }
 
         try {
             // Create meeting in the backend
@@ -116,6 +216,12 @@ const QuickMeeting = () => {
                 participants: [],
                 isLocked: settings.waitingRoom // Enforce Waiting Room setting
             });
+
+            // Stop the local preview tracks only after the meeting exists
+            if (streamRef.current) {
+                stopMediaStream(streamRef.current);
+                streamRef.current = null;
+            }
             
             // Navigate to the room, carrying over the explicit hardware overrides
             navigate(`/room/${res.data.meetingId}`, {
@@ -127,14 +233,9 @@ const QuickMeeting = () => {
             });
         } catch (err) {
             console.error(err);
-            const id = Math.random().toString(36).substring(2, 10);
-            navigate(`/room/${id}`, {
-                state: {
-                    camera: settings.camera,
-                    mic: settings.mic,
-                    isLocked: settings.waitingRoom
-                }
-            });
+            alert(getErrorMessage(err, 'Unable to create the meeting right now. Please check that the backend server is running and try again.'));
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -195,6 +296,14 @@ const QuickMeeting = () => {
                             <Settings size={20} />
                         </button>
                     </div>
+                    {hardwareError && (
+                        <div className="hardware-hint">
+                            <span>{hardwareError}</span>
+                            <button type="button" onClick={() => retryMedia({ camera: true, mic: true })}>
+                                Retry Devices
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <div className="launch-card">

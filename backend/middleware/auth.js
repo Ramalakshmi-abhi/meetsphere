@@ -1,32 +1,31 @@
 const jwt = require('jsonwebtoken');
+const mongoose = require('mongoose');
 const User = require('../models/User');
+const { ensureJwtSecret } = require('../config/runtime');
 
 const auth = async (req, res, next) => {
     try {
-        console.log('--- Auth Middleware Start ---');
         const token = req.header('Authorization')?.replace('Bearer ', '');
         if (!token) {
-            console.log('No token provided');
-            throw new Error('No token provided');
-        }
-        
-        console.log('Verifying token...');
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-        console.log('Token decoded:', decoded._id);
-        
-        const user = await User.findOne({ _id: decoded._id });
-        if (!user) {
-            console.log('User not found for token');
-            throw new Error('User not found');
+            return res.status(401).send({ error: 'Please authenticate.' });
         }
 
-        console.log('Auth successful for:', user.email);
+        if (mongoose.connection.readyState !== 1) {
+            return res.status(503).send({ error: 'Database is currently unavailable. Please try again in a moment.' });
+        }
+
+        const decoded = jwt.verify(token, ensureJwtSecret());
+        const user = await User.findOne({ _id: decoded._id });
+        if (!user) {
+            return res.status(401).send({ error: 'Please authenticate.' });
+        }
+
         req.token = token;
         req.user = user;
         next();
     } catch (e) {
         console.error('Auth middleware error:', e.message);
-        res.status(401).send({ error: 'Please authenticate.' });
+        res.status(e.statusCode || 401).send({ error: e.statusCode === 500 ? e.message : 'Please authenticate.' });
     }
 };
 

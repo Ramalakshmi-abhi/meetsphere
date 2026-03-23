@@ -525,6 +525,20 @@
     animation: slideUp 0.3s ease-out;
 }
 
+.more-popover {
+    position: absolute;
+    bottom: 80px;
+    right: 20px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    padding: 1.5rem;
+    border-radius: 1.5rem;
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+    width: 260px;
+    animation: slideUp 0.3s ease-out;
+}
+
 @keyframes slideUp {
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
@@ -536,10 +550,168 @@
     color: white;
 }
 
+.more-popover h4 {
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+    color: white;
+}
+
 .share-options {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
+}
+
+.more-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.share-options .btn-secondary,
+.more-options .btn-secondary {
+    width: 100%;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+    border-radius: 0.75rem;
+    padding: 0.75rem 1rem;
+    font-weight: 600;
+    text-align: left;
+}
+
+.share-options .btn-secondary:hover,
+.more-options .btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: var(--primary);
+}
+
+.meeting-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.58);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    z-index: 1200;
+}
+
+.meeting-modal {
+    width: min(100%, 520px);
+    background: #11161f;
+    border: 1px solid var(--border);
+    border-radius: 1.5rem;
+    box-shadow: var(--shadow-lg);
+    padding: 1.5rem;
+}
+
+.meeting-modal-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.meeting-modal-header h3 {
+    margin: 0;
+    color: white;
+    font-size: 1.25rem;
+}
+
+.meeting-modal-header p {
+    margin: 0.35rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.95rem;
+}
+
+.meeting-modal-close {
+    width: 36px;
+    height: 36px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.meeting-modal-close:hover {
+    color: white;
+    border-color: var(--primary);
+}
+
+.meeting-modal-label {
+    display: block;
+    color: white;
+    font-weight: 700;
+    margin-bottom: 0.5rem;
+}
+
+.meeting-modal-textarea {
+    width: 100%;
+    min-height: 120px;
+    resize: vertical;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+    padding: 1rem;
+    color: white;
+    font: inherit;
+    outline: none;
+}
+
+.meeting-modal-textarea:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-glow);
+}
+
+.meeting-modal-hint {
+    margin: 0.75rem 0 0;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.meeting-modal-error {
+    margin: 0.85rem 0 0;
+    color: #fca5a5;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.meeting-modal-actions {
+    margin-top: 1.25rem;
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.75rem;
+}
+
+.meeting-modal-actions .btn-secondary {
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.05);
+    color: white;
+    border-radius: 0.85rem;
+    padding: 0.8rem 1rem;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.meeting-send-btn {
+    border: none;
+    background: var(--primary);
+    color: white;
+    border-radius: 0.85rem;
+    padding: 0.8rem 1.2rem;
+    font-weight: 700;
+}
+
+.meeting-send-btn:disabled,
+.meeting-modal-actions .btn-secondary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .btn-whatsapp {
@@ -630,5 +802,14 @@
         right: 50%;
         transform: translateX(50%);
         width: 90%;
+    }
+    .more-popover {
+        bottom: 120px;
+        right: 50%;
+        transform: translateX(50%);
+        width: 90%;
+    }
+    .meeting-modal-actions {
+        flex-direction: column;
     }
 }

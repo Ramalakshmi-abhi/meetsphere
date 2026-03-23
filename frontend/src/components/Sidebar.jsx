@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { 
     LayoutDashboard, 
     Video, 
@@ -20,7 +20,6 @@ import { useAuth } from '../context/AuthContext';
 
 const Sidebar = () => {
     const { logout } = useAuth();
-    const location = useLocation();
 
     const menuItems = [
         { icon: <LayoutDashboard size={20} />, label: 'Dashboard', path: '/dashboard' },

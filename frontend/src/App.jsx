@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
@@ -7,7 +7,6 @@ import Dashboard from './pages/Dashboard';
 import MeetingRoom from './pages/MeetingRoom';
 import AdminDashboard from './pages/AdminDashboard';
 import ScheduleMeeting from './pages/ScheduleMeeting';
-import PlaceholderPage from './pages/PlaceholderPage';
 import MainLayout from './components/MainLayout';
 import JoinMeeting from './pages/JoinMeeting';
 import MyMeetings from './pages/MyMeetings';
@@ -28,10 +27,46 @@ const PrivateRoute = ({ children }) => {
     return user ? <MainLayout>{children}</MainLayout> : <Navigate to="/login" />;
 };
 
+const routeTitles = {
+    '/login': 'Login - MeetSphere',
+    '/signup': 'Sign Up - MeetSphere',
+    '/dashboard': 'Dashboard - MeetSphere',
+    '/schedule': 'Schedule Meeting - MeetSphere',
+    '/join': 'Join Meeting - MeetSphere',
+    '/my-meetings': 'My Meetings - MeetSphere',
+    '/quick': 'Quick Meeting - MeetSphere',
+    '/subscription': 'Subscription - MeetSphere',
+    '/contacts': 'Contacts - MeetSphere',
+    '/recordings': 'Recordings - MeetSphere',
+    '/analytics': 'Analytics - MeetSphere',
+    '/invoices': 'Invoices - MeetSphere',
+    '/developers': 'Developer Settings - MeetSphere',
+    '/developers/docs': 'Developer Docs - MeetSphere',
+    '/settings': 'Meeting Settings - MeetSphere',
+    '/branded': 'Branded Conference - MeetSphere',
+    '/admin': 'Admin Dashboard - MeetSphere',
+    '/': 'MeetSphere',
+};
+
+function RouteTitleManager() {
+    const location = useLocation();
+
+    useEffect(() => {
+        if (location.pathname.startsWith('/room/')) {
+            return;
+        }
+
+        document.title = routeTitles[location.pathname] || 'MeetSphere';
+    }, [location.pathname]);
+
+    return null;
+}
+
 function App() {
     return (
         <AuthProvider>
             <Router>
+                <RouteTitleManager />
                 <div className="app-container">
                     <Routes>
                         <Route path="/login" element={<Login />} />

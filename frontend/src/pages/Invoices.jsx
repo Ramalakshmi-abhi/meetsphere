@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Download, CheckCircle2, Clock, X } from 'lucide-react';
+import { Download, CheckCircle2, Clock, X } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import './MenuPages.css';
 

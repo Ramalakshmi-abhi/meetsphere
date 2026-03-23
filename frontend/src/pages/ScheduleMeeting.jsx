@@ -1,28 +1,39 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-    Calendar, 
-    Clock, 
-    Users, 
-    Lock, 
-    Globe, 
-    CheckCircle2, 
+import {
+    Calendar,
+    Clock,
+    Lock,
+    Globe,
+    CheckCircle2,
     X,
-    ChevronDown,
-    Plus
 } from 'lucide-react';
-import api from '../api';
+import api, { getMeetingUrl } from '../api';
+import { buildMeetingInvite, openWhatsAppInvite } from '../utils/invite';
 import './ScheduleMeeting.css';
+
+const pad = (value) => String(value).padStart(2, '0');
+
+const getDefaultScheduleState = () => {
+    const now = new Date();
+    const defaultStart = new Date(now.getTime() + 15 * 60 * 1000);
+
+    return {
+        date: `${defaultStart.getFullYear()}-${pad(defaultStart.getMonth() + 1)}-${pad(defaultStart.getDate())}`,
+        time: `${pad(defaultStart.getHours())}:${pad(defaultStart.getMinutes())}`,
+    };
+};
 
 const ScheduleMeeting = () => {
     const navigate = useNavigate();
+    const defaultSchedule = getDefaultScheduleState();
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         title: '',
         description: '',
         passcode: '',
-        date: '2025-03-13',
-        time: '12:55',
+        date: defaultSchedule.date,
+        time: defaultSchedule.time,
         durationHr: '1',
         durationMin: '0',
         timezone: '(GMT/UTC+05:30) Mumbai, Delhi, ...',
@@ -83,24 +94,22 @@ const ScheduleMeeting = () => {
         try {
             const startTime = new Date(`${formData.date}T${formData.time}`).toISOString();
             const participantList = formData.attendees.split(',').map(p => p.trim()).filter(p => p);
-            
+
             const res = await api.post('/api/meeting/schedule', {
                 title: formData.title || 'Untitled Meeting',
-                startTime: startTime,
+                startTime,
                 participants: participantList,
                 description: formData.description,
                 passcode: formData.passcode,
                 options: formData.options
             });
-            
-            // Show the success UI instead of navigating right away
+
             setScheduledMeeting({
                 ...res.data,
                 passcode: formData.passcode,
-                startTime: startTime,
+                startTime,
                 title: formData.title || 'Untitled Meeting'
             });
-
         } catch (err) {
             console.error(err);
             const errorMsg = err.response?.data?.error || err.message || 'Unknown error occurred';
@@ -112,32 +121,37 @@ const ScheduleMeeting = () => {
 
     const handleShareWhatsApp = () => {
         if (!scheduledMeeting) return;
-        const meetingDateStr = new Date(scheduledMeeting.startTime).toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-        const meetingTimeStr = new Date(scheduledMeeting.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        const meetingLink = `${window.location.origin}/room/${scheduledMeeting.meetingId || scheduledMeeting.passcode}`;
-        
-        const whatsappText = `Join my MeetSphere Meeting: *${scheduledMeeting.title}*\n\n📅 Date: ${meetingDateStr}\n⏰ Time: ${meetingTimeStr}\n🔑 Passcode: ${scheduledMeeting.passcode}\n🔗 Link: ${meetingLink}\n\nSee you there!`;
-        
-        window.open(`https://wa.me/?text=${encodeURIComponent(whatsappText)}`, '_blank');
+
+        const meetingCode = scheduledMeeting.passcode || scheduledMeeting.meetingId;
+        const { text } = buildMeetingInvite({
+            title: scheduledMeeting.title,
+            meetingId: meetingCode,
+            passcode: scheduledMeeting.passcode,
+            startTime: scheduledMeeting.startTime,
+        });
+
+        openWhatsAppInvite(text);
     };
 
     if (scheduledMeeting) {
+        const meetingCode = scheduledMeeting.passcode || scheduledMeeting.meetingId;
+
         return (
             <div className="schedule-page success-view">
                 <div className="success-card">
                     <CheckCircle2 size={64} className="success-icon" color="#10b981" />
                     <h2>Meeting Scheduled Successfully!</h2>
-                    <p>Your meeting "<strong>{scheduledMeeting.title}</strong>" has been created.</p>
-                    
+                    <p>Your meeting <strong>{scheduledMeeting.title}</strong> has been created.</p>
+
                     <div className="meeting-details-box">
                         <div className="detail-row">
                             <span>Meeting ID / Passcode:</span>
-                            <strong>{scheduledMeeting.passcode}</strong>
+                            <strong>{meetingCode}</strong>
                         </div>
                         <div className="detail-row">
                             <span>Join Link:</span>
-                            <a href={`${window.location.origin}/room/${scheduledMeeting.passcode}`} target="_blank" rel="noreferrer">
-                                {`${window.location.origin}/room/${scheduledMeeting.passcode}`}
+                            <a href={getMeetingUrl(meetingCode)} target="_blank" rel="noreferrer">
+                                {getMeetingUrl(meetingCode)}
                             </a>
                         </div>
                     </div>
@@ -159,42 +173,42 @@ const ScheduleMeeting = () => {
     return (
         <div className="schedule-page">
             <h1 className="page-title">Schedule a New Meeting</h1>
-            
+
             <form onSubmit={handleSubmit} className="schedule-form">
                 <div className="form-left">
                     <section className="form-section">
                         <div className="form-group">
                             <label>Meeting Name <span className="required">Required, at least 2 characters</span></label>
-                            <input 
-                                type="text" 
-                                name="title" 
-                                placeholder="Meeting Name" 
-                                value={formData.title} 
-                                onChange={handleInputChange} 
-                                required 
+                            <input
+                                type="text"
+                                name="title"
+                                placeholder="Meeting Name"
+                                value={formData.title}
+                                onChange={handleInputChange}
+                                required
                             />
                         </div>
-                        
+
                         <div className="form-group">
                             <label>Meeting Description <span className="optional">Optional</span></label>
-                            <textarea 
-                                name="description" 
-                                placeholder="Meeting Description" 
-                                value={formData.description} 
+                            <textarea
+                                name="description"
+                                placeholder="Meeting Description"
+                                value={formData.description}
                                 onChange={handleInputChange}
                             />
                         </div>
-                        
+
                         <div className="form-group">
                             <label>Meeting Passcode <span className="required">Required, at least 6 characters</span></label>
                             <div className="input-with-icon">
-                                <input 
-                                    type="text" 
-                                    name="passcode" 
-                                    placeholder="Passcode" 
-                                    value={formData.passcode} 
-                                    onChange={handleInputChange} 
-                                    required 
+                                <input
+                                    type="text"
+                                    name="passcode"
+                                    placeholder="Passcode"
+                                    value={formData.passcode}
+                                    onChange={handleInputChange}
+                                    required
                                 />
                                 <Lock size={18} className="field-icon" />
                             </div>
@@ -222,10 +236,10 @@ const ScheduleMeeting = () => {
                                 <label>Duration</label>
                                 <div className="duration-inputs">
                                     <select name="durationHr" value={formData.durationHr} onChange={handleInputChange}>
-                                        {[0, 1, 2, 3, 4, 5].map(h => <option key={h} value={h}>{h} hr</option>)}
+                                        {[0, 1, 2, 3, 4, 5].map((h) => <option key={h} value={h}>{h} hr</option>)}
                                     </select>
                                     <select name="durationMin" value={formData.durationMin} onChange={handleInputChange}>
-                                        {[0, 15, 30, 45].map(m => <option key={m} value={m}>{m} min</option>)}
+                                        {[0, 15, 30, 45].map((m) => <option key={m} value={m}>{m} min</option>)}
                                     </select>
                                 </div>
                             </div>
@@ -243,12 +257,12 @@ const ScheduleMeeting = () => {
                         <div className="form-group">
                             <label>Meeting Attendees</label>
                             <div className="attendee-input">
-                                <input 
-                                    type="text" 
-                                    name="attendees" 
-                                    placeholder="Select Attendees (comma-separated emails)" 
-                                    value={formData.attendees} 
-                                    onChange={handleInputChange} 
+                                <input
+                                    type="text"
+                                    name="attendees"
+                                    placeholder="Select Attendees (comma-separated emails)"
+                                    value={formData.attendees}
+                                    onChange={handleInputChange}
                                 />
                                 <button type="button" className="add-contact-btn" onClick={() => setShowContactModal(true)}>
                                     + Add New Contact
@@ -262,8 +276,8 @@ const ScheduleMeeting = () => {
                     <section className="form-section side-section">
                         <div className="section-header">
                             <h3>Recurring Meeting</h3>
-                            <button 
-                                type="button" 
+                            <button
+                                type="button"
                                 className={`toggle-switch ${formData.recurring ? 'on' : ''}`}
                                 onClick={() => setFormData(prev => ({ ...prev, recurring: !prev.recurring }))}
                             >
@@ -276,10 +290,10 @@ const ScheduleMeeting = () => {
                             <div className="checkbox-list">
                                 {Object.entries(formData.options).map(([key, value]) => (
                                     <label key={key} className="checkbox-item">
-                                        <input 
-                                            type="checkbox" 
-                                            checked={value} 
-                                            onChange={() => handleToggleOption(key)} 
+                                        <input
+                                            type="checkbox"
+                                            checked={value}
+                                            onChange={() => handleToggleOption(key)}
                                         />
                                         <span className="checkbox-label">
                                             {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
@@ -297,7 +311,7 @@ const ScheduleMeeting = () => {
                                 <option>Cloud Storage</option>
                             </select>
                         </div>
-                        
+
                         <button type="submit" className="submit-form-btn" disabled={loading}>
                             {loading ? 'Saving & Sending Emails...' : 'Schedule Meeting'}
                         </button>
@@ -305,7 +319,6 @@ const ScheduleMeeting = () => {
                 </div>
             </form>
 
-            {/* Custom Contact Modal */}
             {showContactModal && (
                 <div className="modal-overlay">
                     <div className="modal-content contact-modal">
@@ -318,9 +331,9 @@ const ScheduleMeeting = () => {
                         <form onSubmit={handleAddContact} className="modal-body">
                             <div className="form-group">
                                 <label>Email Address</label>
-                                <input 
-                                    type="email" 
-                                    placeholder="participant@example.com" 
+                                <input
+                                    type="email"
+                                    placeholder="participant@example.com"
                                     value={newContactEmail}
                                     onChange={(e) => setNewContactEmail(e.target.value)}
                                     autoFocus

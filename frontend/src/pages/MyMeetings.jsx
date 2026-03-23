@@ -72,7 +72,7 @@ const MyMeetings = () => {
                         <Calendar size={48} className="empty-icon" />
                         <h3>No {activeTab} meetings found</h3>
                         <p>Your scheduled sessions will appear here.</p>
-                        <button className="btn-outline">Schedule New</button>
+                        <button className="btn-outline" onClick={() => navigate('/schedule')}>Schedule New</button>
                     </div>
                 ) : (
                     <div className="meeting-grid">

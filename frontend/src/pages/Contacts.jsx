@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Plus, Mail, Phone, Edit2, Trash2, UserPlus, Filter, X, CheckCircle2 } from 'lucide-react';
-import axios from 'axios';
+import api from '../api';
 import './MenuPages.css';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const Contacts = () => {
     const [contacts, setContacts] = useState([]);
@@ -20,19 +18,13 @@ const Contacts = () => {
     const [editingContact, setEditingContact] = useState(null);
     const [formData, setFormData] = useState({ name: '', role: '', email: '', phone: '' });
 
-    // Authentication Helper
-    const getAuthHeaders = () => {
-        const token = localStorage.getItem('token');
-        return { headers: { 'Authorization': `Bearer ${token}` } };
-    };
-
     useEffect(() => {
         fetchContacts();
     }, []);
 
     const fetchContacts = async () => {
         try {
-            const res = await axios.get(`${API_URL}/contacts`, getAuthHeaders());
+            const res = await api.get('/api/contacts');
             setContacts(res.data);
             setLoading(false);
         } catch (err) {
@@ -71,12 +63,12 @@ const Contacts = () => {
         try {
             if (editingContact) {
                 // Update specific contact via PUT
-                const res = await axios.put(`${API_URL}/contacts/${editingContact._id}`, formData, getAuthHeaders());
+                const res = await api.put(`/api/contacts/${editingContact._id}`, formData);
                 setContacts(contacts.map(c => c._id === res.data._id ? res.data : c));
                 setSuccessMessage('Contact updated successfully!');
             } else {
                 // Create new contact via POST
-                const res = await axios.post(`${API_URL}/contacts`, formData, getAuthHeaders());
+                const res = await api.post('/api/contacts', formData);
                 setContacts([res.data, ...contacts]);
                 setSuccessMessage('Contact added successfully!');
             }
@@ -93,7 +85,7 @@ const Contacts = () => {
         if (!window.confirm("Are you sure you want to permanently delete this contact?")) return;
         
         try {
-            await axios.delete(`${API_URL}/contacts/${id}`, getAuthHeaders());
+            await api.delete(`/api/contacts/${id}`);
             setContacts(contacts.filter(c => c._id !== id));
             setSuccessMessage('Contact deleted successfully!');
             setTimeout(() => setSuccessMessage(''), 3000);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Users, Video, Database, Activity, ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import api from '../api';
 import './AdminDashboard.css';
 
 export default function AdminDashboard() {
@@ -11,7 +11,7 @@ export default function AdminDashboard() {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const res = await axios.get('/api/admin/stats');
+                const res = await api.get('/api/admin/stats');
                 setStats(res.data);
             } catch (err) {
                 console.error(err);

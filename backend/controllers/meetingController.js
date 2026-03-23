@@ -1,22 +1,19 @@
 const Meeting = require('../models/Meeting');
 const { sendInvitation } = require('../config/email');
+const { ensureDatabaseConnected } = require('../config/runtime');
+
+const meetingLookup = (meetingId) => ({
+    $or: [
+        { meetingId },
+        { passcode: meetingId }
+    ]
+});
 
 exports.scheduleMeeting = async (req, res) => {
     try {
-        const mongoose = require('mongoose');
-        const { title, startTime, participants, passcode, options, isLocked } = req.body;
-        
-        if (mongoose.connection.readyState !== 1) {
-            const meetingId = passcode || Math.random().toString(36).substring(2, 10);
-            return res.status(201).send({
-                _id: new mongoose.Types.ObjectId(),
-                meetingId,
-                title: title || 'Offline Demo',
-                startTime: startTime || new Date(),
-                host: req.user._id,
-                emailWarnings: []
-            });
-        }
+        const { title, startTime, participants, passcode, options, advancedOptions, isLocked } = req.body;
+        const normalizedOptions = options || advancedOptions || {};
+        ensureDatabaseConnected();
 
         if (passcode) {
             const existingMeeting = await Meeting.findOne({
@@ -37,7 +34,7 @@ exports.scheduleMeeting = async (req, res) => {
             title,
             startTime,
             passcode,
-            advancedOptions: options,
+            advancedOptions: normalizedOptions,
             isLocked: isLocked || false,
             host: req.user._id,
         });
@@ -76,43 +73,127 @@ exports.scheduleMeeting = async (req, res) => {
         res.status(201).send(responsePayload);
     } catch (e) {
         console.error('CRITICAL: [Meeting] Scheduling error:', e);
-        res.status(500).send({ error: e.message || 'Scheduling failed' });
+        res.status(e.statusCode || 500).send({ error: e.message || 'Scheduling failed' });
     }
 };
 
 exports.getMeetings = async (req, res) => {
     try {
-        const mongoose = require('mongoose');
-        if (mongoose.connection.readyState !== 1) return res.send([]);
+        ensureDatabaseConnected();
         const meetings = await Meeting.find({ host: req.user._id }).sort({ startTime: 1 }).populate('host', 'name profilePicture branding');
         res.send(meetings);
     } catch (e) {
         console.error('CRITICAL: [Meeting] Fetch error:', e);
-        res.status(500).send({ error: e.message || 'Fetch failed' });
+        res.status(e.statusCode || 500).send({ error: e.message || 'Fetch failed' });
     }
 };
 
 exports.getMeeting = async (req, res) => {
     try {
-        const mongoose = require('mongoose');
-        if (mongoose.connection.readyState !== 1) {
-            return res.send({ _id: new mongoose.Types.ObjectId(), meetingId: req.params.meetingId, host: { name: 'Presentation Demo', branding: {} } });
-        }
-        const meeting = await Meeting.findOne({ 
-            $or: [
-                { meetingId: req.params.meetingId },
-                { passcode: req.params.meetingId }
-            ]
-        }).populate('host', 'name profilePicture branding');
+        ensureDatabaseConnected();
+        const meeting = await Meeting.findOne(meetingLookup(req.params.meetingId))
+            .populate('host', 'name profilePicture branding');
         if (!meeting) return res.status(404).send({ error: 'Meeting not found' });
         res.send(meeting);
     } catch (e) {
         console.error('CRITICAL: [Meeting] Fetch single error:', e);
-        res.status(500).send({ error: e.message || 'Fetch single failed' });
+        res.status(e.statusCode || 500).send({ error: e.message || 'Fetch single failed' });
     }
 };
+
+exports.getPublicMeeting = async (req, res) => {
+    try {
+        ensureDatabaseConnected();
+        const meeting = await Meeting.findOne(meetingLookup(req.params.meetingId))
+            .populate('host', 'name branding');
+
+        if (!meeting) {
+            return res.status(404).send({ error: 'Meeting not found' });
+        }
+
+        res.send({
+            meetingId: meeting.meetingId,
+            passcode: meeting.passcode,
+            title: meeting.title,
+            startTime: meeting.startTime,
+            isLocked: meeting.isLocked,
+            advancedOptions: meeting.advancedOptions,
+            host: meeting.host ? {
+                name: meeting.host.name,
+                branding: meeting.host.branding
+            } : null
+        });
+    } catch (e) {
+        console.error('CRITICAL: [Meeting] Public fetch error:', e);
+        res.status(e.statusCode || 500).send({ error: e.message || 'Public fetch failed' });
+    }
+};
+
+exports.sendMeetingInvites = async (req, res) => {
+    try {
+        ensureDatabaseConnected();
+
+        const emails = Array.isArray(req.body.emails)
+            ? req.body.emails
+            : String(req.body.emails || '')
+                .split(',')
+                .map((email) => email.trim())
+                .filter(Boolean);
+
+        if (emails.length === 0) {
+            return res.status(400).send({ error: 'At least one recipient email is required.' });
+        }
+
+        const uniqueEmails = [...new Set(emails)];
+        const meeting = await Meeting.findOne({
+            ...meetingLookup(req.params.meetingId),
+            host: req.user._id
+        });
+
+        if (!meeting) {
+            return res.status(404).send({ error: 'Meeting not found or you are not allowed to send invites for it.' });
+        }
+
+        const emailWarnings = [];
+        let sentCount = 0;
+
+        await Promise.all(uniqueEmails.map(async (email) => {
+            try {
+                const emailRes = await sendInvitation(email, meeting.meetingId, req.user.name, {
+                    title: meeting.title,
+                    startTime: meeting.startTime
+                });
+
+                if (!emailRes.success) {
+                    const errorMessage = emailRes.error ? emailRes.error.message || emailRes.error.toString() : 'Unknown Error';
+                    emailWarnings.push(`Failed to send to ${email}: ${errorMessage}`);
+                    return;
+                }
+
+                sentCount += 1;
+            } catch (emailErr) {
+                const errorMessage = emailErr ? emailErr.message || emailErr.toString() : 'Unknown Error';
+                emailWarnings.push(`Failed to send to ${email}: ${errorMessage}`);
+            }
+        }));
+
+        res.send({
+            message: sentCount > 0
+                ? `Invitation${sentCount > 1 ? 's' : ''} sent to ${sentCount} recipient${sentCount > 1 ? 's' : ''}.`
+                : 'No invitation emails were sent.',
+            sentCount,
+            totalCount: uniqueEmails.length,
+            emailWarnings
+        });
+    } catch (e) {
+        console.error('CRITICAL: [Meeting] Invite email error:', e);
+        res.status(e.statusCode || 500).send({ error: e.message || 'Failed to send meeting invites.' });
+    }
+};
+
 exports.deleteMeeting = async (req, res) => {
     try {
+        ensureDatabaseConnected();
         const meeting = await Meeting.findOne({ _id: req.params.id, host: req.user._id });
         if (!meeting) {
             return res.status(404).send({ error: 'Meeting not found or you are not authorized to delete it.' });
@@ -121,7 +202,7 @@ exports.deleteMeeting = async (req, res) => {
         res.send({ message: 'Meeting deleted successfully' });
     } catch (e) {
         console.error('CRITICAL: [Meeting] Delete error:', e);
-        res.status(500).send({ error: e.message || 'Delete failed' });
+        res.status(e.statusCode || 500).send({ error: e.message || 'Delete failed' });
     }
 };
 
@@ -129,6 +210,7 @@ const Recording = require('../models/Recording');
 
 exports.uploadRecording = async (req, res) => {
     try {
+        ensureDatabaseConnected();
         if (!req.file) {
             return res.status(400).send({ error: 'No recording file uploaded' });
         }
@@ -154,16 +236,17 @@ exports.uploadRecording = async (req, res) => {
         res.status(201).send({ message: 'Recording uploaded successfully', recording });
     } catch (e) {
         console.error('CRITICAL: [Recording] Upload error:', e);
-        res.status(500).send({ error: e.message || 'Upload failed' });
+        res.status(e.statusCode || 500).send({ error: e.message || 'Upload failed' });
     }
 };
 
 exports.getMyRecordings = async (req, res) => {
     try {
+        ensureDatabaseConnected();
         const recordings = await Recording.find({ host: req.user._id }).sort({ createdAt: -1 });
         res.send(recordings);
     } catch (e) {
         console.error('CRITICAL: [Recording] Fetch error:', e);
-        res.status(500).send({ error: e.message || 'Fetch failed' });
+        res.status(e.statusCode || 500).send({ error: e.message || 'Fetch failed' });
     }
 };

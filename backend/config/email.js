@@ -13,6 +13,9 @@ const transporter = nodemailer.createTransport({
 
 exports.sendInvitation = async (email, meetingId, hostName, meetingOptions = {}) => {
     const meetingTitle = meetingOptions.title || 'Scheduled Meeting';
+    const frontendUrl = (process.env.FRONTEND_URL || 'https://meetsphere-ten.vercel.app').replace(/\/+$/, '');
+    const joinUrl = `${frontendUrl}/room/${meetingId}?mode=guest`;
+    const loginUrl = `${frontendUrl}/login?redirect=${encodeURIComponent(`/room/${meetingId}`)}`;
     const formattedDate = meetingOptions.startTime ? new Date(meetingOptions.startTime).toLocaleString('en-IN', {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
         hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
@@ -36,17 +39,22 @@ exports.sendInvitation = async (email, meetingId, hostName, meetingOptions = {})
                 <p>Choose how you'd like to join:</p>
                 
                 <div style="margin: 20px 0;">
-                    <a href="${process.env.FRONTEND_URL || 'https://meetsphere-ten.vercel.app'}/room/${meetingId}?mode=guest" 
+                    <a href="${joinUrl}" 
                        style="background: #4f46e5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; margin-right: 10px; font-weight: bold;">
                         Join Meeting
                     </a>
                     
-                    <a href="${process.env.FRONTEND_URL || 'https://meetsphere-ten.vercel.app'}/login?redirect=/room/${meetingId}" 
+                    <a href="${loginUrl}" 
                        style="background: white; color: #4f46e5; border: 2px solid #4f46e5; padding: 10px 22px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold;">
                         Login to Join
                     </a>
                 </div>
                 
+                <p style="margin: 16px 0 8px 0; color: #555;">If the button does not open, use this join link:</p>
+                <p style="margin: 0 0 16px 0; word-break: break-all;">
+                    <a href="${joinUrl}" style="color: #4f46e5; text-decoration: underline;">${joinUrl}</a>
+                </p>
+
                 <p style="color: #666; font-size: 14px;">If you don't have an account, you can still join as a guest or sign up first.</p>
             </div>
         `

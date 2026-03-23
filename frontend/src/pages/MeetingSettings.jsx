@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Monitor } from 'lucide-react';
-import axios from 'axios';
+import api from '../api';
 import './MenuPages.css';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 const MeetingSettings = () => {
     const [settings, setSettings] = useState({
@@ -19,14 +17,11 @@ const MeetingSettings = () => {
     useEffect(() => {
         const fetchProfile = async () => {
             try {
-                const token = localStorage.getItem('token');
-                if (!token) {
+                if (!localStorage.getItem('token')) {
                     setLoading(false);
                     return;
                 }
-                const response = await axios.get(`${API_URL}/auth/profile`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const response = await api.get('/api/auth/profile');
                 if (response.data && response.data.meetingSettings) {
                     setSettings(prev => ({ ...prev, ...response.data.meetingSettings }));
                 }
@@ -51,10 +46,7 @@ const MeetingSettings = () => {
         setSaving(true);
         setMessage('');
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.put(`${API_URL}/auth/meeting-settings`, settings, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await api.put('/api/auth/meeting-settings', settings);
             setMessage('Settings saved successfully!');
             setTimeout(() => setMessage(''), 3000);
         } catch (error) {

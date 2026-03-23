@@ -1,10 +1,12 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { ensureDatabaseConnected, ensureJwtSecret } = require('../config/runtime');
 
 exports.register = async (req, res) => {
     try {
         const { name, email, password } = req.body;
+        ensureDatabaseConnected();
         
         // Check if user already exists
         const existingUser = await User.findOne({ email });
@@ -14,32 +16,26 @@ exports.register = async (req, res) => {
 
         const user = new User({ name, email, password });
         await user.save();
-        const token = jwt.sign({ _id: user._id.toString() }, process.env.JWT_SECRET);
+        const token = jwt.sign({ _id: user._id.toString() }, ensureJwtSecret());
         res.status(201).send({ user, token });
     } catch (e) {
         console.error('CRITICAL: Registration error:', e);
-        res.status(500).send({ error: e.message || 'Registration failed' });
+        res.status(e.statusCode || 500).send({ error: e.message || 'Registration failed' });
     }
 };
 
 exports.login = async (req, res) => {
     try {
-        const mongoose = require('mongoose');
-        if (mongoose.connection.readyState !== 1) {
-            console.log('Mocking login due to MongoDB ISP ban');
-            const mockUser = { _id: new mongoose.Types.ObjectId(), name: 'Presentation Demo', email: req.body.email, branding: {} };
-            const token = jwt.sign({ _id: mockUser._id.toString() }, process.env.JWT_SECRET || 'secret');
-            return res.send({ user: mockUser, token });
-        }
+        ensureDatabaseConnected();
         const user = await User.findOne({ email: req.body.email });
         if (!user || !(await user.comparePassword(req.body.password))) {
             return res.status(401).send({ error: 'Login failed! Check authentication credentials' });
         }
-        const token = jwt.sign({ _id: user._id.toString() }, process.env.JWT_SECRET);
+        const token = jwt.sign({ _id: user._id.toString() }, ensureJwtSecret());
         res.send({ user, token });
     } catch (e) {
         console.error('CRITICAL: Login error:', e);
-        res.status(500).send({ error: e.message || 'Login failed' });
+        res.status(e.statusCode || 500).send({ error: e.message || 'Login failed' });
     }
 };
 

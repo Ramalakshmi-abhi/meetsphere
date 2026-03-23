@@ -1,29 +1,59 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, '../.env.local') });
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
 
-// Allowed origins (your Vercel frontend domains)
-const allowedOrigins = [
+const trimTrailingSlash = (value = '') => value.replace(/\/+$/, '');
+const allowedOrigins = new Set([
     "http://localhost:5173",
     "http://127.0.0.1:5173",
     "https://meetsphere-ten.vercel.app",
-    "https://meetsphere.vercel.app"
-];
+    "https://meetsphere.vercel.app",
+    trimTrailingSlash(process.env.FRONTEND_URL || '')
+].filter(Boolean));
+
+const isAllowedOrigin = (origin) => {
+    if (!origin) {
+        return true;
+    }
+
+    const normalizedOrigin = trimTrailingSlash(origin);
+    if (allowedOrigins.has(normalizedOrigin)) {
+        return true;
+    }
+
+    try {
+        const { hostname } = new URL(normalizedOrigin);
+        return hostname === 'localhost'
+            || hostname === '127.0.0.1'
+            || hostname.endsWith('.vercel.app');
+    } catch {
+        return false;
+    }
+};
+
+const corsOptions = {
+    origin(origin, callback) {
+        if (isAllowedOrigin(origin)) {
+            return callback(null, true);
+        }
+
+        console.warn(`Blocked CORS origin: ${origin}`);
+        return callback(new Error('Not allowed by CORS'));
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    credentials: true
+};
 
 // Socket.IO setup with better polling support and timeouts
 const io = socketIo(server, {
-    cors: {
-        origin: allowedOrigins,
-        methods: ["GET", "POST"],
-        credentials: true
-    },
+    cors: corsOptions,
     path: '/socket.io',
     pingTimeout: 60000,       // Increased for Railway wake-up delays
     pingInterval: 25000,
@@ -36,10 +66,7 @@ const io = socketIo(server, {
 });
 
 // Middleware
-app.use(cors({
-    origin: allowedOrigins,
-    credentials: true
-}));
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -138,8 +165,9 @@ const socketToName = {};   // socket.id → userName
 io.on('connection', (socket) => {
     console.log(`New client connected: ${socket.id} (transport: ${socket.conn.transport.name})`);
 
-    socket.on('join-room', (roomID, socketId, userName) => {
+    socket.on('join-room', (roomID, _socketId, userName) => {
         console.log(`User ${userName || 'Guest'} (${socket.id}) joining room ${roomID}`);
+        socket.join(roomID);
         if (users[roomID]) {
             users[roomID].push(socket.id);
         } else {
@@ -212,6 +240,7 @@ io.on('connection', (socket) => {
 function handleUserDisconnect(socket) {
     const roomID = socketToRoom[socket.id];
     if (roomID) {
+        socket.leave(roomID);
         let room = users[roomID];
         if (room) {
             users[roomID] = room.filter(id => id !== socket.id);
@@ -259,7 +288,7 @@ app.use('/api/contacts', contactRoutes);
 
 // Serve frontend (SPA fallback)
 app.use(express.static(path.join(__dirname, '../frontend/dist')));
-app.get('*', (req, res) => {
+app.get('/{*path}', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
 });
 

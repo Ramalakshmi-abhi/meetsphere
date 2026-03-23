@@ -1,17 +1,14 @@
 import React from 'react';
-import { useAuth } from '../context/AuthContext';
-import { Video, Plus, Calendar, Settings, LogOut } from 'lucide-react';
-import api, { BASE_URL } from '../api';
+import { Plus } from 'lucide-react';
+import api, { BASE_URL, SOCKET_URL } from '../api';
 import { useNavigate } from 'react-router-dom';
-import SchedulerModal from '../components/SchedulerModal';
 import './Dashboard.css';
 
 export default function Dashboard() {
-    const { user, logout } = useAuth();
     const navigate = useNavigate();
     const [roomID, setRoomID] = React.useState('');
-    const [showScheduler, setShowScheduler] = React.useState(false);
     const [meetings, setMeetings] = React.useState([]);
+    const [quickMeetingError, setQuickMeetingError] = React.useState('');
 
     React.useEffect(() => {
         const fetchMeetings = async () => {
@@ -27,12 +24,13 @@ export default function Dashboard() {
         // Silently ping the Socket.io WebSocket server to wake it up in the background
         // since the free tier Railway container goes to sleep after 10m of inactivity
         try {
-            fetch(`${BASE_URL || window.location.origin}/socket.io/?EIO=4&transport=polling`).catch(() => {});
-        } catch (e) {}
+            fetch(`${SOCKET_URL || BASE_URL || window.location.origin}/socket.io/?EIO=4&transport=polling`).catch(() => {});
+        } catch {}
 
     }, []);
 
     const createMeeting = async () => {
+        setQuickMeetingError('');
         try {
             const res = await api.post('/api/meeting/schedule', {
                 title: 'Instant Meeting',
@@ -42,9 +40,11 @@ export default function Dashboard() {
             navigate(`/room/${res.data.meetingId}`);
         } catch (err) {
             console.error(err);
-            // Fallback to random ID if API fails
-            const id = Math.random().toString(36).substring(2, 10);
-            navigate(`/room/${id}`);
+            setQuickMeetingError(
+                err?.response?.data?.error ||
+                err?.message ||
+                'Unable to create the meeting. Please check that the meeting server is available and try again.'
+            );
         }
     };
 
@@ -72,6 +72,7 @@ export default function Dashboard() {
                             <button onClick={joinMeeting} className="btn-secondary">Join</button>
                         </div>
                     </div>
+                    {quickMeetingError && <p className="hero-error">{quickMeetingError}</p>}
                 </div>
             </section>
 
@@ -114,8 +115,6 @@ export default function Dashboard() {
                     </div>
                 </div>
             </section>
-            
-            {showScheduler && <SchedulerModal closeModal={() => setShowScheduler(false)} />}
         </div>
     );
 }

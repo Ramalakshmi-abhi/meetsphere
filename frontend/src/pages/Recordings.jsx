@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Play, Download, Trash2, Calendar, FileVideo } from 'lucide-react';
-import api, { BASE_URL } from '../api';
+import { Play, Download, Calendar, FileVideo } from 'lucide-react';
+import api, { getAbsoluteUrl } from '../api';
 import './MenuPages.css';
 
 const Recordings = () => {
@@ -32,7 +32,7 @@ const Recordings = () => {
 
     const handlePlay = (fileUrl) => {
         // Open the video in a new tab for native browser playback
-        window.open(`${BASE_URL}${fileUrl}`, '_blank');
+        window.open(getAbsoluteUrl(fileUrl), '_blank');
     };
 
     return (
@@ -47,7 +47,7 @@ const Recordings = () => {
                 <div style={{ padding: '40px', textAlign: 'center', color: '#666', background: '#f9fafb', borderRadius: '8px' }}>
                     <FileVideo size={48} style={{ opacity: 0.5, marginBottom: '10px' }} />
                     <p>No recordings found.</p>
-                    <p style={{ fontSize: '14px', marginTop: '5px' }}>Start a meeting and press 'record' to save your first video.</p>
+                    <p style={{ fontSize: '14px', marginTop: '5px' }}>Start a meeting and press &apos;record&apos; to save your first video.</p>
                 </div>
             ) : (
                 <div className="recordings-grid">
@@ -66,7 +66,7 @@ const Recordings = () => {
                                     <button className="btn-icon-text" onClick={() => handlePlay(rec.fileUrl)}>
                                         <Play size={16} /> Play
                                     </button>
-                                    <a href={`${BASE_URL}${rec.fileUrl}`} download className="btn-icon-text" style={{ textDecoration: 'none' }}>
+                                    <a href={getAbsoluteUrl(rec.fileUrl)} download className="btn-icon-text" style={{ textDecoration: 'none' }}>
                                         <Download size={16} /> Save
                                     </a>
                                 </div>

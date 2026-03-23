@@ -1,12 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import io from 'socket.io-client';
-import { BASE_URL } from '../api';
-import api from '../api';
+import api, { SOCKET_URL, getAbsoluteUrl, getMeetingUrl } from '../api';
 import Peer from 'simple-peer';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, ScreenShare, MoreVertical, MessageSquare, Users, Circle, X, Plus } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, ScreenShare, MoreVertical, MessageSquare, Users, Circle, X, Plus, Mail } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ChatPanel from '../components/ChatPanel';
+import { buildMeetingEmailDraft, buildMeetingInvite, openWhatsAppInvite } from '../utils/invite';
+import { describeMediaError, getMediaTrack, requestMediaStream, requestMediaTrack, stopMediaStream } from '../utils/media';
 import './MeetingRoom.css';
 import './ParticipantPanel.css';
 
@@ -16,21 +17,15 @@ const WhatsAppIcon = () => (
     </svg>
 );
 
-// Updated socket init: Allow polling fallback (essential for Vercel serverless)
-const socket = io(BASE_URL || window.location.origin, {
+const socket = io(SOCKET_URL, {
     path: '/socket.io',
-    transports: ['polling', 'websocket'], // Force polling first, then websocket
+    transports: ['polling', 'websocket'],
     reconnection: true,
     reconnectionAttempts: 40,
     reconnectionDelay: 2000,
     timeout: 40000,
-    pingTimeout: 60000,
-    pingInterval: 25000,
-    secure: true,
-    autoConnect: true,
-    extraHeaders: {
-        'Bypass-Tunnel-Reminder': 'true'
-    }
+    withCredentials: true,
+    autoConnect: false,
 });
 
 export default function MeetingRoom() {
@@ -53,73 +48,83 @@ export default function MeetingRoom() {
     const [meetingTitle, setMeetingTitle] = useState('Meeting');
     const [meetingOptions, setMeetingOptions] = useState({});
     const [showShareModal, setShowShareModal] = useState(false);
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
+    const [showEmailInviteModal, setShowEmailInviteModal] = useState(false);
     const [hasJoined, setHasJoined] = useState(false);
     const [tempGuestName, setTempGuestName] = useState('');
     const [finalName, setFinalName] = useState(userName);
     const [hostBranding, setHostBranding] = useState(null);
     const [socketStatus, setSocketStatus] = useState('connecting');
+    const [logoLoadFailed, setLogoLoadFailed] = useState(false);
+    const [inviteEmails, setInviteEmails] = useState('');
+    const [inviteEmailError, setInviteEmailError] = useState('');
+    const [sendingInvites, setSendingInvites] = useState(false);
 
     const userVideo = useRef();
     const peersRef = useRef([]);
     const mediaRecorderRef = useRef(null);
     const recordedChunks = useRef([]);
+    const streamRef = useRef(null);
+
+    const updateLocalStream = (nextStream) => {
+        streamRef.current = nextStream;
+        setStream(nextStream);
+        if (userVideo.current) {
+            userVideo.current.srcObject = screenStream || nextStream || null;
+        }
+    };
 
     useEffect(() => {
-        // Detailed socket logging for production debugging
-        socket.on('connect', () => {
+        // Socket lifecycle logging
+        const handleConnect = () => {
             console.log('✅ SOCKET.IO CONNECTED! ID:', socket.id);
             setSocketStatus('connected');
-        });
+        };
 
-        socket.on('connect_error', (err) => {
+        const handleConnectError = (err) => {
             console.error('❌ SOCKET.IO ERROR:', err.message);
             setSocketStatus('error');
-        });
+        };
 
-        socket.on('disconnect', (reason) => {
+        const handleDisconnect = (reason) => {
             console.log('❌ SOCKET.IO DISCONNECTED:', reason);
             setSocketStatus('disconnected');
-        });
+        };
 
         // Debug polling packets
-        socket.io.on('packet', (p) => {
+        const handlePacket = (p) => {
             if (p.type === 'error') console.log('📦 Socket Packet Error:', p.data);
-        });
+        };
+
+        socket.on('connect', handleConnect);
+        socket.on('connect_error', handleConnectError);
+        socket.on('disconnect', handleDisconnect);
+        socket.io.on('packet', handlePacket);
+
+        if (socket.connected) {
+            setSocketStatus('connected');
+        } else {
+            setSocketStatus('connecting');
+            socket.connect();
+        }
 
         return () => {
-            socket.off('connect');
-            socket.off('connect_error');
-            socket.off('disconnect');
+            socket.off('connect', handleConnect);
+            socket.off('connect_error', handleConnectError);
+            socket.off('disconnect', handleDisconnect);
+            socket.io.off('packet', handlePacket);
+            socket.disconnect();
         };
     }, []);
 
     useEffect(() => {
         if (!hasJoined) {
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(currentStream => {
-                    if (initialState.camera === false && currentStream.getVideoTracks()[0]) {
-                        currentStream.getVideoTracks()[0].enabled = false;
-                    }
-                    if (initialState.mic === false && currentStream.getAudioTracks()[0]) {
-                        currentStream.getAudioTracks()[0].enabled = false;
-                    }
-
-                    setStream(currentStream);
-                    if (userVideo.current) {
-                        userVideo.current.srcObject = currentStream;
-                    }
-                }).catch(err => {
-                    console.error("Media error:", err);
-                    alert("Camera or Microphone access was denied or not found. Please allow permissions.");
-                });
-            } else {
-                console.error("navigator.mediaDevices is undefined");
-                alert("Camera and Microphone not supported in this context (try HTTPS/localhost).");
-            }
-
             const fetchMeetingDetails = async () => {
                 try {
-                    const res = await api.get(`/api/meeting/${roomId}`);
+                    const meetingPath = user
+                        ? `/api/meeting/${roomId}`
+                        : `/api/meeting/public/${roomId}`;
+                    const res = await api.get(meetingPath);
                     setMeetingTitle(res.data.title);
                     if (res.data.advancedOptions) {
                         setMeetingOptions(res.data.advancedOptions);
@@ -143,7 +148,7 @@ export default function MeetingRoom() {
             console.log('All users received:', users);
             const currentPeers = [];
             users.forEach(userObj => {
-                const peer = createPeer(userObj.id, socket.id, stream);
+                const peer = createPeer(userObj.id, socket.id, streamRef.current);
                 peersRef.current.push({
                     peerID: userObj.id,
                     peerName: userObj.name,
@@ -164,7 +169,7 @@ export default function MeetingRoom() {
             if (existingPeer) {
                 existingPeer.peer.signal(payload.signal);
             } else {
-                const peer = addPeer(payload.signal, payload.callerID, stream);
+                const peer = addPeer(payload.signal, payload.callerID, streamRef.current);
                 peersRef.current.push({
                     peerID: payload.callerID,
                     peerName: payload.callerName,
@@ -202,7 +207,7 @@ export default function MeetingRoom() {
             socket.off('receiving-returned-signal');
             socket.off('user-disconnected');
         };
-    }, [roomId, hasJoined, stream]);
+    }, [roomId, hasJoined, finalName, user]);
 
     useEffect(() => {
         if (userVideo.current) {
@@ -214,7 +219,20 @@ export default function MeetingRoom() {
         }
     }, [stream, screenStream, hasJoined]);
 
-    const joinMeetingRoom = () => {
+    useEffect(() => {
+        setLogoLoadFailed(false);
+    }, [hostBranding?.logoUrl]);
+
+    useEffect(() => {
+        const previousTitle = document.title;
+        document.title = `${meetingTitle || 'Meeting'} - MeetSphere`;
+
+        return () => {
+            document.title = previousTitle;
+        };
+    }, [meetingTitle]);
+
+    const joinMeetingRoom = async () => {
         if (!user && !tempGuestName.trim()) {
             alert("Please enter your name to join");
             return;
@@ -223,14 +241,75 @@ export default function MeetingRoom() {
             setFinalName(tempGuestName);
         }
 
-        if (meetingOptions?.muteOnEntry && stream) {
-            stream.getAudioTracks()[0].enabled = false;
-            setMicOn(false);
+        let activeStream = streamRef.current;
+        let nextVideoOn = videoOn;
+        let nextMicOn = micOn;
+
+        if (!activeStream && (videoOn || micOn)) {
+            try {
+                const { stream: requestedStream, errors } = await requestMediaStream({
+                    video: videoOn,
+                    audio: micOn,
+                });
+
+                activeStream = requestedStream;
+                updateLocalStream(requestedStream);
+
+                nextVideoOn = videoOn && requestedStream.getVideoTracks().length > 0;
+                nextMicOn = micOn && requestedStream.getAudioTracks().length > 0;
+                setVideoOn(nextVideoOn);
+                setMicOn(nextMicOn);
+
+                const message = describeMediaError({
+                    errors,
+                    requestedVideo: videoOn,
+                    requestedAudio: micOn,
+                });
+                if (message) {
+                    alert(message);
+                }
+            } catch (err) {
+                console.error("Media error while joining:", err);
+                nextVideoOn = false;
+                nextMicOn = false;
+                setVideoOn(false);
+                setMicOn(false);
+                alert(describeMediaError({
+                    error: err,
+                    requestedVideo: videoOn,
+                    requestedAudio: micOn,
+                }));
+            }
         }
 
-        if (meetingOptions?.videoMuteOnEntry && stream) {
-            stream.getVideoTracks()[0].enabled = false;
-            setVideoOn(false);
+        if (meetingOptions?.muteOnEntry && activeStream) {
+            const audioTrack = activeStream.getAudioTracks()[0];
+            if (audioTrack) {
+                audioTrack.enabled = false;
+                setMicOn(false);
+                nextMicOn = false;
+            }
+        }
+
+        if (meetingOptions?.videoMuteOnEntry && activeStream) {
+            const videoTrack = activeStream.getVideoTracks()[0];
+            if (videoTrack) {
+                videoTrack.enabled = false;
+                setVideoOn(false);
+                nextVideoOn = false;
+            }
+        }
+
+        if (activeStream) {
+            const audioTrack = activeStream.getAudioTracks()[0];
+            if (audioTrack) {
+                audioTrack.enabled = nextMicOn;
+            }
+
+            const videoTrack = activeStream.getVideoTracks()[0];
+            if (videoTrack) {
+                videoTrack.enabled = nextVideoOn;
+            }
         }
 
         setHasJoined(true);
@@ -271,7 +350,7 @@ export default function MeetingRoom() {
             console.log('PEER CONNECTED SUCCESSFULLY to', userToSignal);
         });
 
-        peer.on('stream', remoteStream => {
+        peer.on('stream', _remoteStream => {
             console.log('Received remote STREAM from', userToSignal);
         });
 
@@ -321,7 +400,7 @@ export default function MeetingRoom() {
             console.log('PEER CONNECTED SUCCESSFULLY from incoming', callerID);
         });
 
-        peer.on('stream', remoteStream => {
+        peer.on('stream', _remoteStream => {
             console.log('Received remote STREAM from incoming', callerID);
         });
 
@@ -338,18 +417,51 @@ export default function MeetingRoom() {
         return peer;
     }
 
+    const leaveMeeting = useCallback(() => {
+        socket.emit('leave-room');
+        if (userVideo.current?.srcObject) {
+            stopMediaStream(userVideo.current.srcObject);
+            userVideo.current.srcObject = null;
+        }
+        if (streamRef.current) {
+            stopMediaStream(streamRef.current);
+            streamRef.current = null;
+        }
+        if (screenStream) {
+            stopMediaStream(screenStream);
+        }
+        peersRef.current.forEach(({ peer }) => {
+            try {
+                peer.destroy();
+            } catch (err) {
+                console.error('Peer cleanup failed:', err);
+            }
+        });
+        if (recording) mediaRecorderRef.current.stop();
+        setStream(null);
+        setScreenStream(null);
+        navigate('/dashboard');
+    }, [navigate, recording, screenStream]);
+
     const [isHost, setIsHost] = useState(false);
 
     useEffect(() => {
+        if (!hasJoined) {
+            return undefined;
+        }
+
         socket.emit('check-host', roomId);
         socket.on('host-check-result', (result) => {
             setIsHost(result);
         });
 
         socket.on('mute-action', () => {
-            if (stream) {
-                stream.getAudioTracks()[0].enabled = false;
-                setMicOn(false);
+            if (streamRef.current) {
+                const audioTrack = streamRef.current.getAudioTracks()[0];
+                if (audioTrack) {
+                    audioTrack.enabled = false;
+                    setMicOn(false);
+                }
             }
         });
 
@@ -362,7 +474,7 @@ export default function MeetingRoom() {
             socket.off('mute-action');
             socket.off('remove-action');
         };
-    }, [roomId, stream]);
+    }, [roomId, hasJoined, leaveMeeting]);
 
     const muteParticipant = (userID) => {
         socket.emit('mute-user', { userID, roomID: roomId });
@@ -372,22 +484,76 @@ export default function MeetingRoom() {
         socket.emit('remove-user', { userID, roomID: roomId });
     };
 
-    const toggleMic = () => {
-        if (!stream) {
-            alert("Microphone is not available. Please check browser permissions.");
+    const toggleMic = async () => {
+        const audioTrack = getMediaTrack(streamRef.current, 'audio');
+        if (audioTrack) {
+            audioTrack.enabled = !micOn;
+            setMicOn(!micOn);
             return;
         }
-        stream.getAudioTracks()[0].enabled = !micOn;
-        setMicOn(!micOn);
+
+        try {
+            const newTrack = await requestMediaTrack('audio');
+            if (!newTrack) {
+                throw new Error('No microphone track returned.');
+            }
+
+            const targetStream = streamRef.current || new MediaStream();
+            targetStream.addTrack(newTrack);
+            if (!streamRef.current) {
+                updateLocalStream(targetStream);
+            }
+
+            peersRef.current.forEach(({ peer }) => {
+                try {
+                    peer.addTrack(newTrack, targetStream);
+                } catch (err) {
+                    console.error('Failed to add microphone track to peer:', err);
+                }
+            });
+
+            setMicOn(true);
+        } catch (err) {
+            console.error('Microphone enable failed:', err);
+            alert(describeMediaError({ error: err, requestedAudio: true }));
+        }
     };
 
-    const toggleVideo = () => {
-        if (!stream) {
-            alert("Camera is not available. Please check browser permissions.");
+    const toggleVideo = async () => {
+        const videoTrack = getMediaTrack(streamRef.current, 'video');
+        if (videoTrack) {
+            videoTrack.enabled = !videoOn;
+            setVideoOn(!videoOn);
             return;
         }
-        stream.getVideoTracks()[0].enabled = !videoOn;
-        setVideoOn(!videoOn);
+
+        try {
+            const newTrack = await requestMediaTrack('video');
+            if (!newTrack) {
+                throw new Error('No camera track returned.');
+            }
+
+            const targetStream = streamRef.current || new MediaStream();
+            targetStream.addTrack(newTrack);
+            if (!streamRef.current) {
+                updateLocalStream(targetStream);
+            } else if (userVideo.current && !screenStream) {
+                userVideo.current.srcObject = targetStream;
+            }
+
+            peersRef.current.forEach(({ peer }) => {
+                try {
+                    peer.addTrack(newTrack, targetStream);
+                } catch (err) {
+                    console.error('Failed to add camera track to peer:', err);
+                }
+            });
+
+            setVideoOn(true);
+        } catch (err) {
+            console.error('Camera enable failed:', err);
+            alert(describeMediaError({ error: err, requestedVideo: true }));
+        }
     };
 
     const shareScreen = () => {
@@ -489,60 +655,104 @@ export default function MeetingRoom() {
         }
     };
 
-    const leaveMeeting = () => {
-        if (stream) stream.getTracks().forEach(track => track.stop());
-        if (screenStream) screenStream.getTracks().forEach(track => track.stop());
-        if (recording) mediaRecorderRef.current.stop();
-        navigate('/dashboard');
-    };
-
     const copyToClipboard = () => {
-        const url = `${window.location.origin}/room/${roomId}`;
-        navigator.clipboard.writeText(url);
-        alert('Meeting link copied to clipboard!');
+        const url = getMeetingUrl(roomId);
+        const closeMenus = () => {
+            setShowShareModal(false);
+            setShowMoreMenu(false);
+        };
+
+        if (navigator.clipboard?.writeText) {
+            navigator.clipboard.writeText(url)
+                .then(() => {
+                    closeMenus();
+                    alert('Meeting link copied to clipboard!');
+                })
+                .catch((error) => {
+                    console.error('Clipboard copy failed:', error);
+                    alert('Unable to copy the meeting link. Please copy it manually.');
+                });
+            return;
+        }
+
+        closeMenus();
+        alert(`Copy this meeting link:\n${url}`);
     };
 
     const shareToWhatsAppRoom = () => {
-        const url = `${window.location.origin}/room/${roomId}`;
-        const now = new Date();
-        const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' };
-        const timeOptions = { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' };
-        
-        const dateString = now.toLocaleDateString(undefined, dateOptions);
-        const timeString = now.toLocaleTimeString(undefined, timeOptions);
-        
-        const text = `Join my MeetSphere meeting!\n\n` +
-                     `Topic: ${meetingTitle}\n` +
-                     `Date: ${dateString}\n` +
-                     `Time: ${timeString}\n` +
-                     `Location: MeetSphere Web\n\n` +
-                     `Meeting ID: ${roomId}\n` +
-                     `Link: ${url}`;
-                     
-        window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+        const { text } = buildMeetingInvite({
+            title: meetingTitle,
+            meetingId: roomId,
+        });
+
+        setShowShareModal(false);
+        setShowMoreMenu(false);
+        openWhatsAppInvite(text);
+    };
+
+    const openEmailInviteModal = () => {
+        setInviteEmailError('');
+        setShowShareModal(false);
+        setShowMoreMenu(false);
+        setShowEmailInviteModal(true);
     };
 
     const shareViaEmail = () => {
-        const url = `${window.location.origin}/room/${roomId}`;
-        const now = new Date();
-        const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata' };
-        const timeOptions = { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' };
-        
-        const dateString = now.toLocaleDateString(undefined, dateOptions);
-        const timeString = now.toLocaleTimeString(undefined, timeOptions);
-        
-        const subject = `Invitation: Join ${meetingTitle} Video Meeting`;
-        const body = `You have been invited to a video meeting on MeetSphere.\n\n` +
-                     `Topic: ${meetingTitle}\n` +
-                     `Date: ${dateString}\n` +
-                     `Time: ${timeString}\n` +
-                     `Location: MeetSphere Web\n\n` +
-                     `Meeting ID: ${roomId}\n\n` +
-                     `Click here to join the meeting: ${url}`;
-        
+        const { subject, body } = buildMeetingEmailDraft({
+            title: meetingTitle,
+            meetingId: roomId,
+        });
         const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        
-        window.location.href = mailtoLink;
+        const gmailComposeUrl = `https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        const composeWindow = window.open(gmailComposeUrl, '_blank', 'noopener,noreferrer');
+
+        if (!composeWindow) {
+            window.location.href = mailtoLink;
+        }
+    };
+
+    const sendInviteEmails = async () => {
+        const recipients = inviteEmails
+            .split(',')
+            .map((email) => email.trim())
+            .filter(Boolean);
+
+        if (recipients.length === 0) {
+            setInviteEmailError('Add at least one recipient email address.');
+            return;
+        }
+
+        setSendingInvites(true);
+        setInviteEmailError('');
+
+        try {
+            const res = await api.post(`/api/meeting/${roomId}/invite`, {
+                emails: recipients
+            });
+
+            const warnings = Array.isArray(res.data.emailWarnings) ? res.data.emailWarnings : [];
+            if (warnings.length > 0) {
+                alert(`${res.data.message}\n\n${warnings.join('\n')}`);
+            } else {
+                alert(res.data.message || 'Meeting invitations sent successfully.');
+            }
+
+            setInviteEmails('');
+            setShowEmailInviteModal(false);
+        } catch (err) {
+            console.error('Failed to send invite emails:', err);
+            if (err?.response?.status === 404) {
+                setInviteEmailError('Invite sending is not available on the current backend yet. Restart the backend server and try again.');
+            } else {
+                setInviteEmailError(
+                    err?.response?.data?.error ||
+                    err?.message ||
+                    'Unable to send meeting invitations right now.'
+                );
+            }
+        } finally {
+            setSendingInvites(false);
+        }
     };
 
     if (!hasJoined) {
@@ -675,11 +885,27 @@ export default function MeetingRoom() {
                 
                 <footer className="meeting-controls">
                     <div className="left-controls">
-                        {hostBranding && hostBranding.logoUrl && (
+                        {hostBranding?.logoUrl && !logoLoadFailed && (
                             <img 
-                                src={`${BASE_URL}${hostBranding.logoUrl}`} 
+                                src={getAbsoluteUrl(hostBranding.logoUrl)} 
                                 alt="Organization Logo" 
+                                onError={() => setLogoLoadFailed(true)}
                                 style={{ height: '32px', marginRight: '1rem', borderRadius: '4px', objectFit: 'contain', background: 'rgba(255,255,255,0.1)', padding: '4px' }}
+                            />
+                        )}
+                        {(!hostBranding?.logoUrl || logoLoadFailed) && (
+                            <img
+                                src="/meetsphere-favicon.svg"
+                                alt="MeetSphere"
+                                style={{
+                                    width: '32px',
+                                    height: '32px',
+                                    marginRight: '1rem',
+                                    borderRadius: '8px',
+                                    background: 'rgba(255,255,255,0.12)',
+                                    padding: '4px',
+                                    objectFit: 'contain',
+                                }}
                             />
                         )}
                         <div>
@@ -706,16 +932,46 @@ export default function MeetingRoom() {
                         <button onClick={shareToWhatsAppRoom} title="Share on WhatsApp" className="whatsapp-control-btn">
                             <WhatsAppIcon />
                         </button>
-                        <button onClick={() => setShowShareModal(!showShareModal)} className={showShareModal ? 'active' : ''} title="Share Meeting">
+                        <button
+                            onClick={() => {
+                                setShowShareModal(!showShareModal);
+                                setShowMoreMenu(false);
+                            }}
+                            className={showShareModal ? 'active' : ''}
+                            title="Share Meeting"
+                        >
                             <Plus size={20} />
                         </button>
-                        <button onClick={() => setShowChat(!showChat)} className={showChat ? 'active' : ''}>
+                        <button
+                            onClick={() => {
+                                setShowChat(!showChat);
+                                setShowShareModal(false);
+                                setShowMoreMenu(false);
+                            }}
+                            className={showChat ? 'active' : ''}
+                        >
                             <MessageSquare />
                         </button>
-                        <button onClick={() => setShowParticipants(!showParticipants)} className={showParticipants ? 'active' : ''}>
+                        <button
+                            onClick={() => {
+                                setShowParticipants(!showParticipants);
+                                setShowShareModal(false);
+                                setShowMoreMenu(false);
+                            }}
+                            className={showParticipants ? 'active' : ''}
+                        >
                             <Users />
                         </button>
-                        <button><MoreVertical /></button>
+                        <button
+                            onClick={() => {
+                                setShowMoreMenu(!showMoreMenu);
+                                setShowShareModal(false);
+                            }}
+                            className={showMoreMenu ? 'active' : ''}
+                            title="More options"
+                        >
+                            <MoreVertical />
+                        </button>
                     </div>
                 </footer>
             </div>
@@ -724,10 +980,59 @@ export default function MeetingRoom() {
                     <h4>Share Meeting</h4>
                     <div className="share-options">
                         <button onClick={copyToClipboard} className="btn-secondary">Copy Link</button>
-                        <button onClick={shareViaEmail} className="btn-secondary">✉️ Email Link</button>
+                        <button onClick={openEmailInviteModal} className="btn-secondary">Email Invite</button>
                         <button onClick={shareToWhatsAppRoom} className="btn-whatsapp">
                             <WhatsAppIcon /> Share on WhatsApp
                         </button>
+                    </div>
+                </div>
+            )}
+            {showMoreMenu && (
+                <div className="more-popover">
+                    <h4>Meeting Options</h4>
+                    <div className="more-options">
+                        <button onClick={copyToClipboard} className="btn-secondary">Copy Invite Link</button>
+                        <button onClick={openEmailInviteModal} className="btn-secondary">Email Invite</button>
+                        <button onClick={() => { setShowParticipants(true); setShowMoreMenu(false); }} className="btn-secondary">View Participants</button>
+                        <button onClick={() => { setShowChat(true); setShowMoreMenu(false); }} className="btn-secondary">Open Chat</button>
+                    </div>
+                </div>
+            )}
+            {showEmailInviteModal && (
+                <div className="meeting-modal-overlay" onClick={() => !sendingInvites && setShowEmailInviteModal(false)}>
+                    <div className="meeting-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="meeting-modal-header">
+                            <div>
+                                <h3>Email Invite</h3>
+                                <p>Send this quick meeting to one or more participants.</p>
+                            </div>
+                            <button
+                                type="button"
+                                className="meeting-modal-close"
+                                onClick={() => !sendingInvites && setShowEmailInviteModal(false)}
+                            >
+                                <X size={18} />
+                            </button>
+                        </div>
+                        <label className="meeting-modal-label" htmlFor="invite-emails">To</label>
+                        <textarea
+                            id="invite-emails"
+                            className="meeting-modal-textarea"
+                            placeholder="Enter one or more email addresses, separated by commas"
+                            value={inviteEmails}
+                            onChange={(e) => setInviteEmails(e.target.value)}
+                            disabled={sendingInvites}
+                        />
+                        <p className="meeting-modal-hint">Example: teammate@company.com, guest@example.com</p>
+                        {inviteEmailError && <p className="meeting-modal-error">{inviteEmailError}</p>}
+                        <div className="meeting-modal-actions">
+                            <button type="button" className="btn-secondary" onClick={shareViaEmail} disabled={sendingInvites}>
+                                <Mail size={16} /> Open Mail App
+                            </button>
+                            <button type="button" className="meeting-send-btn" onClick={sendInviteEmails} disabled={sendingInvites}>
+                                {sendingInvites ? 'Sending...' : 'Send Invite'}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -780,18 +1085,24 @@ const VideoComponent = ({ peer, peerName }) => {
     useEffect(() => {
         if (!peer) return;
 
+        const handleStream = (stream) => {
+            console.log('on stream event fired - attaching remote video');
+            if (ref.current) {
+                ref.current.srcObject = stream;
+            }
+        };
+
         if (peer.streams && peer.streams.length > 0) {
             console.log('Attaching pre-existing remote stream');
-            ref.current.srcObject = peer.streams[0];
+            if (ref.current) {
+                ref.current.srcObject = peer.streams[0];
+            }
         }
 
-        peer.on('stream', stream => {
-            console.log('on stream event fired - attaching remote video');
-            ref.current.srcObject = stream;
-        });
+        peer.on('stream', handleStream);
 
         return () => {
-            peer.off('stream');
+            peer.off('stream', handleStream);
         };
     }, [peer]);
 

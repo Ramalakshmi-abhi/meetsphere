@@ -14,7 +14,7 @@ const MainLayout = ({ children }) => {
                     <div className="breadcrumb">MeetSphere › Product</div>
                     <div className="user-nav">
                         <span className="user-subscription">
-                            {user?.name || 'User'} ({user?.subscription || 'Personal'})
+                            {user?.name || 'User'} ({user?.plan || 'Basic'})
                         </span>
                         <div className="user-avatar">{user?.name ? user.name[0] : '?'}</div>
                     </div>

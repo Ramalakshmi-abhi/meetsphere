@@ -1,11 +1,9 @@
-import React, { useState, useEffect, useRef, useContext } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Palette, Image as ImageIcon, Save } from 'lucide-react';
-import api from '../api';
+import api, { getAbsoluteUrl } from '../api';
 import './MenuPages.css';
-import { useAuth } from '../context/AuthContext';
 
 const BrandedConference = () => {
-    const { user } = useAuth();
     const [branding, setBranding] = useState({
         primaryColor: '#6366f1',
         secondaryColor: '#1e293b',
@@ -48,7 +46,7 @@ const BrandedConference = () => {
         setLoading(true);
         try {
             // Save colors
-            const colorsRes = await api.put('/api/auth/branding', {
+            await api.put('/api/auth/branding', {
                 primaryColor: branding.primaryColor,
                 secondaryColor: branding.secondaryColor
             });
@@ -141,7 +139,7 @@ const BrandedConference = () => {
                         <div className="mock-header">
                             <div className="mock-logo">
                                 {previewLogoUrl ? (
-                                    <img src={previewLogoUrl.startsWith('blob:') ? previewLogoUrl : `${api.defaults.baseURL || api.defaults.baseURL || 'http://localhost:5000'}${previewLogoUrl}`} alt="Logo" style={{ height: '24px', borderRadius: '4px', objectFit: 'contain' }} />
+                                    <img src={getAbsoluteUrl(previewLogoUrl)} alt="Logo" style={{ height: '24px', borderRadius: '4px', objectFit: 'contain' }} />
                                 ) : (
                                     <div className="dot" style={{ background: branding.primaryColor }}></div>
                                 )}
