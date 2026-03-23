@@ -295,7 +295,7 @@ app.get('/{*path}', (req, res) => {
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
-    console.log(`Allowed origins: ${allowedOrigins.join(', ')}`);
+    console.log(`Allowed origins: ${Array.from(allowedOrigins).join(', ')}`);
 });
 
 module.exports = app;
