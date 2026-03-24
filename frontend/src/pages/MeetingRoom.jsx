@@ -80,6 +80,7 @@ export default function MeetingRoom() {
     const [inviteEmails, setInviteEmails] = useState('');
     const [inviteEmailError, setInviteEmailError] = useState('');
     const [sendingInvites, setSendingInvites] = useState(false);
+    const [roomLimitMessage, setRoomLimitMessage] = useState('');
 
     const userVideo = useRef();
     const peersRef = useRef([]);
@@ -140,6 +141,28 @@ export default function MeetingRoom() {
             setSocketStatus('disconnected');
         };
 
+        const handleRoomFull = (payload) => {
+            const message = payload?.message || 'This meeting is full. Please try again later.';
+            console.warn('Room join rejected:', payload);
+            clearPeers();
+            if (userVideo.current?.srcObject) {
+                stopMediaStream(userVideo.current.srcObject);
+                userVideo.current.srcObject = null;
+            }
+            if (streamRef.current) {
+                stopMediaStream(streamRef.current);
+                streamRef.current = null;
+            }
+            setStream(null);
+            setScreenStream(null);
+            setHasJoined(false);
+            setShowParticipants(false);
+            setShowChat(false);
+            setSocketStatus('error');
+            setRoomLimitMessage(message);
+            alert(message);
+        };
+
         // Debug polling packets
         const handlePacket = (p) => {
             if (p.type === 'error') console.log('📦 Socket Packet Error:', p.data);
@@ -148,6 +171,7 @@ export default function MeetingRoom() {
         socket.on('connect', handleConnect);
         socket.on('connect_error', handleConnectError);
         socket.on('disconnect', handleDisconnect);
+        socket.on('room-full', handleRoomFull);
         socket.io.on('packet', handlePacket);
 
         if (!IS_LOCAL_DEV_HOST) {
@@ -173,10 +197,11 @@ export default function MeetingRoom() {
             socket.off('connect', handleConnect);
             socket.off('connect_error', handleConnectError);
             socket.off('disconnect', handleDisconnect);
+            socket.off('room-full', handleRoomFull);
             socket.io.off('packet', handlePacket);
             socket.disconnect();
         };
-    }, []);
+    }, [clearPeers]);
 
     useEffect(() => {
         if (!hasJoined) {
@@ -338,6 +363,7 @@ export default function MeetingRoom() {
             alert("Please enter your name to join");
             return;
         }
+        setRoomLimitMessage('');
         if (!user) {
             setFinalName(tempGuestName);
         }
@@ -916,6 +942,22 @@ export default function MeetingRoom() {
                                 <div className="avatar">{userName[0]}</div>
                                 <span>Joining as <strong>{userName}</strong></span>
                             </div>
+                        )}
+
+                        {roomLimitMessage && (
+                            <p style={{
+                                marginTop: '14px',
+                                marginBottom: '0',
+                                padding: '10px 12px',
+                                borderRadius: '12px',
+                                background: 'rgba(239, 68, 68, 0.12)',
+                                border: '1px solid rgba(248, 113, 113, 0.35)',
+                                color: '#fca5a5',
+                                fontSize: '14px',
+                                lineHeight: 1.5,
+                            }}>
+                                {roomLimitMessage}
+                            </p>
                         )}
 
                         <button className="join-btn" onClick={joinMeetingRoom}>

@@ -176,6 +176,7 @@ app.get('/api/health/email', async (req, res) => {
 const users = {};          // roomID → [socket.id, ...]
 const socketToRoom = {};   // socket.id → roomID
 const socketToName = {};   // socket.id → userName
+const MAX_ROOM_PARTICIPANTS = Number(process.env.MAX_ROOM_PARTICIPANTS || 6);
 const getUsersInRoom = (roomID) => (users[roomID] || []).map((id) => ({
     id,
     name: socketToName[id] || 'Guest'
@@ -185,6 +186,18 @@ io.on('connection', (socket) => {
     console.log(`New client connected: ${socket.id} (transport: ${socket.conn.transport.name})`);
 
     socket.on('join-room', (roomID, _socketId, userName) => {
+        const roomUsers = users[roomID] || [];
+        if (!roomUsers.includes(socket.id) && roomUsers.length >= MAX_ROOM_PARTICIPANTS) {
+            const message = `This meeting is full. MeetSphere currently supports up to ${MAX_ROOM_PARTICIPANTS} participants in one room.`;
+            console.warn(`Room ${roomID} is full (${roomUsers.length}/${MAX_ROOM_PARTICIPANTS}). Rejecting ${socket.id}.`);
+            socket.emit('room-full', {
+                roomID,
+                limit: MAX_ROOM_PARTICIPANTS,
+                message,
+            });
+            return;
+        }
+
         console.log(`User ${userName || 'Guest'} (${socket.id}) joining room ${roomID}`);
         socket.join(roomID);
         if (users[roomID]) {
