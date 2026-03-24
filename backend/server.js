@@ -10,6 +10,11 @@ const app = express();
 const server = http.createServer(app);
 
 const trimTrailingSlash = (value = '') => value.replace(/\/+$/, '');
+const isPrivateNetworkHostname = (hostname = '') => (
+    /^10\.\d+\.\d+\.\d+$/.test(hostname)
+    || /^192\.168\.\d+\.\d+$/.test(hostname)
+    || /^172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+$/.test(hostname)
+);
 const allowedOrigins = new Set([
     "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -32,6 +37,8 @@ const isAllowedOrigin = (origin) => {
         const { hostname } = new URL(normalizedOrigin);
         return hostname === 'localhost'
             || hostname === '127.0.0.1'
+            || hostname === '::1'
+            || isPrivateNetworkHostname(hostname)
             || hostname.endsWith('.vercel.app');
     } catch {
         return false;
@@ -63,6 +70,14 @@ const io = socketIo(server, {
     reconnectionDelay: 3000,
     reconnectionDelayMax: 10000,
     timeout: 30000
+});
+
+io.engine.on('connection_error', (err) => {
+    console.warn('[Socket.IO Engine Error]', {
+        code: err.code,
+        message: err.message,
+        context: err.context,
+    });
 });
 
 // Middleware
@@ -161,6 +176,10 @@ app.get('/api/health/email', async (req, res) => {
 const users = {};          // roomID → [socket.id, ...]
 const socketToRoom = {};   // socket.id → roomID
 const socketToName = {};   // socket.id → userName
+const getUsersInRoom = (roomID) => (users[roomID] || []).map((id) => ({
+    id,
+    name: socketToName[id] || 'Guest'
+}));
 
 io.on('connection', (socket) => {
     console.log(`New client connected: ${socket.id} (transport: ${socket.conn.transport.name})`);
@@ -169,18 +188,20 @@ io.on('connection', (socket) => {
         console.log(`User ${userName || 'Guest'} (${socket.id}) joining room ${roomID}`);
         socket.join(roomID);
         if (users[roomID]) {
-            users[roomID].push(socket.id);
+            if (!users[roomID].includes(socket.id)) {
+                users[roomID].push(socket.id);
+            }
         } else {
             users[roomID] = [socket.id];
         }
         socketToRoom[socket.id] = roomID;
         socketToName[socket.id] = userName || 'Guest';
 
-        const usersInThisRoom = users[roomID]
-            .filter(id => id !== socket.id)
-            .map(id => ({ id, name: socketToName[id] }));
+        const usersInThisRoom = getUsersInRoom(roomID)
+            .filter((user) => user.id !== socket.id);
 
         socket.emit('all-users', usersInThisRoom);
+        io.to(roomID).emit('room-users', getUsersInRoom(roomID));
         socket.to(roomID).emit('user-joined-room', { id: socket.id, name: socketToName[socket.id] });
     });
 
@@ -252,6 +273,7 @@ function handleUserDisconnect(socket) {
         delete socketToName[socket.id];
 
         socket.to(roomID).emit('user-disconnected', socket.id);
+        io.to(roomID).emit('room-users', getUsersInRoom(roomID));
         console.log(`User ${socket.id} left room ${roomID}`);
     }
 }

@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import api, { withBackendRetry } from '../api';
 
 const AuthContext = createContext();
+const PROFILE_BOOTSTRAP_TIMEOUT_MS = 8000;
 
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(null);
@@ -20,16 +21,15 @@ export const AuthProvider = ({ children }) => {
 
     const fetchProfile = async () => {
         try {
-            const res = await withBackendRetry(
-                () => api.get('/api/auth/profile'),
-                { warmup: true }
-            );
+            const res = await api.get('/api/auth/profile', {
+                timeout: PROFILE_BOOTSTRAP_TIMEOUT_MS,
+            });
             setUser(res.data);
         } catch (err) {
             if (err?.response?.status === 401) {
                 localStorage.removeItem('token');
             } else {
-                console.error('Profile fetch failed:', err);
+                console.error('Profile bootstrap failed:', err);
             }
         } finally {
             setLoading(false);

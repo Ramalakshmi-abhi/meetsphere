@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import io from 'socket.io-client';
-import api, { SOCKET_URL, getAbsoluteUrl, getMeetingUrl } from '../api';
+import api, { IS_LOCAL_DEV_HOST, SOCKET_URL, getAbsoluteUrl, getMeetingUrl, withBackendRetry } from '../api';
 import Peer from 'simple-peer';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, ScreenShare, MoreVertical, MessageSquare, Users, Circle, X, Plus, Mail } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -35,14 +35,17 @@ const attachMediaStream = (element, stream, { muted = false } = {}) => {
     }
 };
 
-const socket = io(SOCKET_URL, {
+const socket = io(IS_LOCAL_DEV_HOST ? undefined : SOCKET_URL, {
     path: '/socket.io',
-    transports: ['polling', 'websocket'],
+    transports: IS_LOCAL_DEV_HOST ? ['websocket'] : ['polling', 'websocket'],
     reconnection: true,
     reconnectionAttempts: 40,
     reconnectionDelay: 2000,
     timeout: 40000,
-    withCredentials: true,
+    upgrade: !IS_LOCAL_DEV_HOST,
+    rememberUpgrade: IS_LOCAL_DEV_HOST,
+    withCredentials: !IS_LOCAL_DEV_HOST,
+    forceNew: IS_LOCAL_DEV_HOST,
     autoConnect: false,
 });
 
@@ -92,6 +95,34 @@ export default function MeetingRoom() {
         }
     };
 
+    const clearPeers = useCallback(({ resetState = true } = {}) => {
+        peersRef.current.forEach(({ peer }) => {
+            try {
+                peer.destroy();
+            } catch (err) {
+                console.error('Peer cleanup failed:', err);
+            }
+        });
+        peersRef.current = [];
+        if (resetState) {
+            setPeers([]);
+        }
+    }, []);
+
+    const updatePeerEntry = useCallback((peerID, updates) => {
+        if (!peerID) {
+            return;
+        }
+
+        peersRef.current = peersRef.current.map((peerEntry) => (
+            peerEntry.peerID === peerID ? { ...peerEntry, ...updates } : peerEntry
+        ));
+
+        setPeers((currentPeers) => currentPeers.map((peerEntry) => (
+            peerEntry.peerID === peerID ? { ...peerEntry, ...updates } : peerEntry
+        )));
+    }, []);
+
     useEffect(() => {
         // Socket lifecycle logging
         const handleConnect = () => {
@@ -119,6 +150,18 @@ export default function MeetingRoom() {
         socket.on('disconnect', handleDisconnect);
         socket.io.on('packet', handlePacket);
 
+        if (!IS_LOCAL_DEV_HOST) {
+            try {
+                fetch(`${SOCKET_URL}/socket.io/?EIO=4&transport=polling`, {
+                    headers: {
+                        'Bypass-Tunnel-Reminder': 'true',
+                    },
+                }).catch(() => {});
+            } catch {
+                // Ignore wake-up probe failures; socket.io retries handle recovery.
+            }
+        }
+
         if (socket.connected) {
             setSocketStatus('connected');
         } else {
@@ -142,7 +185,7 @@ export default function MeetingRoom() {
                     const meetingPath = user
                         ? `/api/meeting/${roomId}`
                         : `/api/meeting/public/${roomId}`;
-                    const res = await api.get(meetingPath);
+                    const res = await withBackendRetry(() => api.get(meetingPath), { warmup: true });
                     setMeetingTitle(res.data.title);
                     if (res.data.advancedOptions) {
                         setMeetingOptions(res.data.advancedOptions);
@@ -159,45 +202,69 @@ export default function MeetingRoom() {
         }
 
         console.log("User joining meeting room officially...");
-        
-        socket.emit('join-room', roomId, socket.id, finalName);
 
-        socket.on('all-users', users => {
+        const joinCurrentRoom = () => {
+            if (!socket.connected) {
+                return;
+            }
+
+            clearPeers();
+            console.log('Joining room with active socket...', roomId, socket.id);
+            socket.emit('join-room', roomId, socket.id, finalName);
+        };
+
+        const handleAllUsers = (users) => {
             console.log('All users received:', users);
+            clearPeers();
             const currentPeers = [];
+            const seenPeerIds = new Set();
             users.forEach(userObj => {
+                if (!userObj?.id || userObj.id === socket.id || seenPeerIds.has(userObj.id)) {
+                    return;
+                }
+                seenPeerIds.add(userObj.id);
                 const peer = createPeer(userObj.id, socket.id, streamRef.current);
-                peersRef.current.push({
+                const peerEntry = {
                     peerID: userObj.id,
                     peerName: userObj.name,
                     peer,
-                });
-                currentPeers.push({
-                    peerID: userObj.id,
-                    peerName: userObj.name,
-                    peer,
-                });
+                    remoteStream: null,
+                };
+                peersRef.current.push(peerEntry);
+                currentPeers.push(peerEntry);
             });
             setPeers(currentPeers);
-        });
+        };
 
-        socket.on('user-joined', payload => {
+        const handleUserJoined = (payload) => {
             console.log('User joined signal:', payload);
+            if (!payload?.callerID || payload.callerID === socket.id) {
+                return;
+            }
             const existingPeer = peersRef.current.find(p => p.peerID === payload.callerID);
             if (existingPeer) {
+                if (existingPeer.peerName !== payload.callerName) {
+                    updatePeerEntry(payload.callerID, { peerName: payload.callerName });
+                }
                 existingPeer.peer.signal(payload.signal);
             } else {
-                const peer = addPeer(payload.signal, payload.callerID, streamRef.current);
-                peersRef.current.push({
+                const peer = addPeer(payload.callerID, streamRef.current);
+                const peerEntry = {
                     peerID: payload.callerID,
                     peerName: payload.callerName,
                     peer,
-                });
-                setPeers(users => [...users, { peerID: payload.callerID, peerName: payload.callerName, peer }]);
+                    remoteStream: null,
+                };
+                peersRef.current.push(peerEntry);
+                setPeers((users) => [
+                    ...users.filter((user) => user.peerID !== payload.callerID),
+                    peerEntry,
+                ]);
+                peer.signal(payload.signal);
             }
-        });
+        };
 
-        socket.on('receiving-returned-signal', payload => {
+        const handleReturnedSignal = (payload) => {
             console.log('Received returned signal:', payload);
             const item = peersRef.current.find(p => p.peerID === payload.id);
             if (item) {
@@ -207,25 +274,41 @@ export default function MeetingRoom() {
                 }
                 item.peer.signal(payload.signal);
             }
-        });
+        };
 
-        socket.on('user-disconnected', userId => {
+        const handleUserDisconnected = (userId) => {
             console.log('User disconnected:', userId);
             const peerObj = peersRef.current.find(p => p.peerID === userId);
             if (peerObj) peerObj.peer.destroy();
             const filteredPeers = peersRef.current.filter(p => p.peerID !== userId);
             peersRef.current = filteredPeers;
             setPeers(filteredPeers);
-        });
+        };
+
+        socket.on('connect', joinCurrentRoom);
+        socket.on('all-users', handleAllUsers);
+        socket.on('user-joined', handleUserJoined);
+        socket.on('receiving-returned-signal', handleReturnedSignal);
+        socket.on('user-disconnected', handleUserDisconnected);
+
+        if (socket.connected) {
+            joinCurrentRoom();
+        } else {
+            socket.connect();
+        }
 
         return () => {
-            socket.emit('leave-room');
-            socket.off('all-users');
-            socket.off('user-joined');
-            socket.off('receiving-returned-signal');
-            socket.off('user-disconnected');
+            if (socket.connected) {
+                socket.emit('leave-room');
+            }
+            socket.off('connect', joinCurrentRoom);
+            socket.off('all-users', handleAllUsers);
+            socket.off('user-joined', handleUserJoined);
+            socket.off('receiving-returned-signal', handleReturnedSignal);
+            socket.off('user-disconnected', handleUserDisconnected);
+            clearPeers({ resetState: false });
         };
-    }, [roomId, hasJoined, finalName, user]);
+    }, [roomId, hasJoined, finalName, user, clearPeers, updatePeerEntry]);
 
     useEffect(() => {
         if (userVideo.current) {
@@ -368,8 +451,9 @@ export default function MeetingRoom() {
             console.log('PEER CONNECTED SUCCESSFULLY to', userToSignal);
         });
 
-        peer.on('stream', _remoteStream => {
+        peer.on('stream', (remoteStream) => {
             console.log('Received remote STREAM from', userToSignal);
+            updatePeerEntry(userToSignal, { remoteStream });
         });
 
         peer.on('iceStateChange', state => {
@@ -383,7 +467,7 @@ export default function MeetingRoom() {
         return peer;
     }
 
-    function addPeer(incomingSignal, callerID, stream) {
+    function addPeer(callerID, stream) {
         const peer = new Peer({
             initiator: false,
             trickle: true,
@@ -418,8 +502,9 @@ export default function MeetingRoom() {
             console.log('PEER CONNECTED SUCCESSFULLY from incoming', callerID);
         });
 
-        peer.on('stream', _remoteStream => {
+        peer.on('stream', (remoteStream) => {
             console.log('Received remote STREAM from incoming', callerID);
+            updatePeerEntry(callerID, { remoteStream });
         });
 
         peer.on('iceStateChange', state => {
@@ -430,13 +515,13 @@ export default function MeetingRoom() {
             console.error('Peer error for incoming', callerID, ':', err);
         });
 
-        peer.signal(incomingSignal);
-
         return peer;
     }
 
     const leaveMeeting = useCallback(() => {
-        socket.emit('leave-room');
+        if (socket.connected) {
+            socket.emit('leave-room');
+        }
         if (userVideo.current?.srcObject) {
             stopMediaStream(userVideo.current.srcObject);
             userVideo.current.srcObject = null;
@@ -448,18 +533,12 @@ export default function MeetingRoom() {
         if (screenStream) {
             stopMediaStream(screenStream);
         }
-        peersRef.current.forEach(({ peer }) => {
-            try {
-                peer.destroy();
-            } catch (err) {
-                console.error('Peer cleanup failed:', err);
-            }
-        });
+        clearPeers();
         if (recording) mediaRecorderRef.current.stop();
         setStream(null);
         setScreenStream(null);
         navigate('/dashboard');
-    }, [navigate, recording, screenStream]);
+    }, [clearPeers, navigate, recording, screenStream]);
 
     const [isHost, setIsHost] = useState(false);
 
@@ -897,7 +976,11 @@ export default function MeetingRoom() {
                         <div className="video-label">You</div>
                     </div>
                     {peers.map((peerObj) => (
-                        <VideoComponent key={peerObj.peerID} peer={peerObj.peer} peerName={peerObj.peerName} />
+                        <VideoComponent
+                            key={peerObj.peerID}
+                            peerName={peerObj.peerName}
+                            remoteStream={peerObj.remoteStream}
+                        />
                     ))}
                 </div>
                 
@@ -1097,32 +1180,27 @@ export default function MeetingRoom() {
     );
 }
 
-const VideoComponent = ({ peer, peerName }) => {
+const VideoComponent = ({ peerName, remoteStream }) => {
     const ref = useRef();
 
     useEffect(() => {
-        if (!peer) return;
-
-        const handleStream = (stream) => {
-            console.log('on stream event fired - attaching remote video');
-            if (ref.current) {
-                attachMediaStream(ref.current, stream);
-            }
-        };
-
-        if (peer.streams && peer.streams.length > 0) {
-            console.log('Attaching pre-existing remote stream');
-            if (ref.current) {
-                attachMediaStream(ref.current, peer.streams[0]);
-            }
+        if (!ref.current) {
+            return undefined;
         }
 
-        peer.on('stream', handleStream);
+        if (remoteStream) {
+            console.log('Attaching remote stream to participant tile');
+            attachMediaStream(ref.current, remoteStream);
+        } else {
+            ref.current.srcObject = null;
+        }
 
         return () => {
-            peer.off('stream', handleStream);
+            if (ref.current) {
+                ref.current.srcObject = null;
+            }
         };
-    }, [peer]);
+    }, [remoteStream]);
 
     return (
         <div className="video-card">

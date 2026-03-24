@@ -6,11 +6,14 @@ const DEFAULT_BACKEND_ORIGIN = 'https://meetsphere-production-6ae4.up.railway.ap
 const configuredBaseUrl = trimTrailingSlash(import.meta.env.VITE_BACKEND_URL || '');
 const configuredPublicOrigin = trimTrailingSlash(import.meta.env.VITE_PUBLIC_ORIGIN || '');
 const configuredSocketUrl = trimTrailingSlash(import.meta.env.VITE_SOCKET_URL || '');
-const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+const browserHostname = window.location.hostname;
+const isPrivateIpv4Host = /^(10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+)$/.test(browserHostname);
+const isLocalDevHost = ['localhost', '127.0.0.1'].includes(browserHostname) || isPrivateIpv4Host;
+export const IS_LOCAL_DEV_HOST = isLocalDevHost;
 
-export const BASE_URL = configuredBaseUrl || (isLocalhost ? 'http://localhost:5000' : DEFAULT_BACKEND_ORIGIN);
-export const APP_ORIGIN = configuredPublicOrigin || (isLocalhost ? DEFAULT_PUBLIC_ORIGIN : window.location.origin);
-export const SOCKET_URL = configuredSocketUrl || (isLocalhost ? window.location.origin : BASE_URL);
+export const BASE_URL = configuredBaseUrl || (isLocalDevHost ? window.location.origin : DEFAULT_BACKEND_ORIGIN);
+export const APP_ORIGIN = configuredPublicOrigin || window.location.origin || DEFAULT_PUBLIC_ORIGIN;
+export const SOCKET_URL = configuredSocketUrl || (isLocalDevHost ? window.location.origin : BASE_URL);
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
