@@ -5,6 +5,7 @@ import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Dashboard from './pages/Dashboard';
 import MeetingRoom from './pages/MeetingRoom';
+import LiveKitMeetingRoom from './pages/LiveKitMeetingRoom';
 import AdminDashboard from './pages/AdminDashboard';
 import ScheduleMeeting from './pages/ScheduleMeeting';
 import MainLayout from './components/MainLayout';
@@ -20,6 +21,7 @@ import DeveloperSettings from './pages/DeveloperSettings';
 import DeveloperDocs from './pages/DeveloperDocs';
 import MeetingSettings from './pages/MeetingSettings';
 import BrandedConference from './pages/BrandedConference';
+import { ENABLE_LIVEKIT } from './api';
 import './App.css';
 
 const PrivateRoute = ({ children }) => {
@@ -107,7 +109,7 @@ function App() {
                         {/* Direct Room Route (Usually no sidebar) */}
                         <Route 
                             path="/room/:roomId" 
-                            element={<MeetingRoom />} 
+                            element={ENABLE_LIVEKIT ? <LiveKitMeetingRoom /> : <MeetingRoom />} 
                         />
 
                         <Route 

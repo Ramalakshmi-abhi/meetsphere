@@ -1,5 +1,16 @@
 const path = require('path');
-require('dotenv').config({ path: path.resolve(__dirname, '../.env.local') });
+const fs = require('fs');
+const dotenv = require('dotenv');
+
+[
+    path.resolve(__dirname, '../.env.local'),
+    path.resolve(__dirname, '.env'),
+].forEach((envPath) => {
+    if (fs.existsSync(envPath)) {
+        dotenv.config({ path: envPath, override: false });
+    }
+});
+
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');

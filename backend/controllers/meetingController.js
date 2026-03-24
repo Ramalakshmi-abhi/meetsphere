@@ -1,6 +1,7 @@
 const Meeting = require('../models/Meeting');
 const { sendInvitation } = require('../config/email');
 const { ensureDatabaseConnected } = require('../config/runtime');
+const { createLiveKitToken } = require('../config/livekit');
 
 const meetingLookup = (meetingId) => ({
     $or: [
@@ -8,6 +9,12 @@ const meetingLookup = (meetingId) => ({
         { passcode: meetingId }
     ]
 });
+
+const slugifyParticipantName = (value = '') => String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 32);
 
 exports.scheduleMeeting = async (req, res) => {
     try {
@@ -126,6 +133,55 @@ exports.getPublicMeeting = async (req, res) => {
     } catch (e) {
         console.error('CRITICAL: [Meeting] Public fetch error:', e);
         res.status(e.statusCode || 500).send({ error: e.message || 'Public fetch failed' });
+    }
+};
+
+exports.createPublicLiveKitToken = async (req, res) => {
+    try {
+        ensureDatabaseConnected();
+
+        const meeting = await Meeting.findOne(meetingLookup(req.params.meetingId))
+            .populate('host', 'name');
+
+        if (!meeting) {
+            return res.status(404).send({ error: 'Meeting not found' });
+        }
+
+        const requestedName = String(
+            req.body?.name || req.user?.name || req.body?.participantName || ''
+        ).trim();
+
+        if (!requestedName) {
+            return res.status(400).send({ error: 'Participant name is required to join this room.' });
+        }
+
+        const participantName = requestedName.slice(0, 80);
+        const baseIdentity = slugifyParticipantName(participantName) || 'guest';
+        const participantIdentity = `${baseIdentity}-${Math.random().toString(36).slice(2, 10)}`;
+
+        const { token, url } = await createLiveKitToken({
+            roomName: meeting.meetingId,
+            participantName,
+            participantIdentity,
+            metadata: {
+                meetingId: meeting.meetingId,
+                meetingTitle: meeting.title,
+                hostName: meeting.host?.name || '',
+                joinMode: 'livekit',
+            },
+        });
+
+        res.send({
+            token,
+            url,
+            roomName: meeting.meetingId,
+            participantIdentity,
+            participantName,
+            meetingTitle: meeting.title,
+        });
+    } catch (e) {
+        console.error('CRITICAL: [Meeting] LiveKit token error:', e);
+        res.status(e.statusCode || 500).send({ error: e.message || 'Failed to generate room token.' });
     }
 };
 

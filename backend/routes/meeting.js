@@ -33,6 +33,7 @@ router.post('/schedule', auth, meetingController.scheduleMeeting);
 router.get('/my-meetings', auth, meetingController.getMeetings);
 router.get('/my-recordings', auth, meetingController.getMyRecordings); // Added
 router.get('/public/:meetingId', meetingController.getPublicMeeting);
+router.post('/public/:meetingId/livekit-token', meetingController.createPublicLiveKitToken);
 router.post('/:meetingId/invite', auth, meetingController.sendMeetingInvites);
 router.post('/:roomId/recording', auth, upload.single('recording'), meetingController.uploadRecording); // Added
 router.get('/:meetingId', auth, meetingController.getMeeting);
