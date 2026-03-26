@@ -224,24 +224,24 @@ export default function LiveKitMeetingRoom() {
     };
 
     const handleOpenMailApp = () => {
-        const { subject, body } = buildMeetingEmailDraft({
-            title: meetingTitle,
-            meetingId: roomId
-        });
-        const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        console.log('Final Mail Trial:', mailto.substring(0, 50));
+        // Drastically simple mailto to rule out length issues
+        const url = getMeetingUrl(roomId);
+        const mailto = `mailto:?subject=Join%20Meeting&body=Join%20the%20MeetSphere%20meeting%20at%3A%20${encodeURIComponent(url)}`;
         
-        const link = document.createElement('a');
-        link.href = mailto;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
+        console.log('Iframe Protocol Attempt:', mailto);
         
+        // Trigger via hidden iframe to avoid 'page leave' detection
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+        iframe.src = mailto;
+        
+        // Cleanup
         setTimeout(() => {
-            if (document.body.contains(link)) {
-                document.body.removeChild(link);
+            if (document.body.contains(iframe)) {
+                document.body.removeChild(iframe);
             }
-        }, 500);
+        }, 1000);
     };
 
     const copyToClipboard = () => {
@@ -849,17 +849,13 @@ export default function LiveKitMeetingRoom() {
                             </div>
                         </div>
                         <footer className="modal-footer">
-                            <a 
-                                href={`mailto:?subject=${encodeURIComponent(buildMeetingEmailDraft({ title: meetingTitle, meetingId: roomId }).subject)}&body=${encodeURIComponent(buildMeetingEmailDraft({ title: meetingTitle, meetingId: roomId }).body)}`}
-                                className="outline-btn"
-                                style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-                                onClick={(e) => {
-                                    console.log('Native Mailto Click');
-                                }}
+                            <button 
+                                className="outline-btn" 
+                                onClick={handleOpenMailApp}
                             >
                                 <Mail size={18} />
                                 Open Mail App
-                            </a>
+                            </button>
                             <button 
                                 className="primary-btn-modal" 
                                 onClick={handleSendEmailInvite}
