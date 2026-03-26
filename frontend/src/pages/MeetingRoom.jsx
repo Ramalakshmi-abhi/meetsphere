@@ -828,7 +828,18 @@ export default function MeetingRoom() {
             meetingId: roomId,
         });
         const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        window.open(mailto, '_self');
+        
+        // Use a hidden iframe to prevent 'page leave' detection
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        document.body.appendChild(iframe);
+        iframe.src = mailto;
+        // Clean up
+        setTimeout(() => {
+            if (document.body.contains(iframe)) {
+                document.body.removeChild(iframe);
+            }
+        }, 300);
     };
 
     const sendInviteEmails = async () => {
