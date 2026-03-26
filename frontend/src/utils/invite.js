@@ -75,7 +75,7 @@ export const buildMeetingEmailDraft = ({ title = 'Meeting', meetingId = '', pass
 
     return {
         subject: `Invitation: Join ${title || 'Meeting'} on MeetSphere`,
-        body: bodyLines.join('\n'),
+        body: bodyLines.join('\r\n'),
         url,
     };
 };
