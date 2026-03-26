@@ -55,18 +55,15 @@ export const buildMeetingEmailDraft = ({ title = 'Meeting', meetingId = '', pass
     const { url, dateString, timeString } = buildMeetingInvite({ title, meetingId, passcode, startTime });
     const resolvedMeetingId = String(meetingId || passcode || '').trim();
     const bodyLines = [
-        `Join the MeetSphere meeting: ${url}`
+        'You are invited to a MeetSphere meeting.',
+        '',
+        `Topic: ${title || 'Meeting'}`,
+        `Date: ${dateString}`,
+        `Time: ${timeString}`,
+        '',
+        'Join Link:',
+        url
     ];
-
-    if (resolvedMeetingId) {
-        bodyLines.push('', `Meeting ID: ${resolvedMeetingId}`);
-    }
-
-    if (passcode && passcode !== resolvedMeetingId) {
-        bodyLines.push(`Passcode: ${passcode}`);
-    }
-
-    bodyLines.push('', 'Tap or open this link to join:', url);
 
     return {
         subject: `Invitation: Join ${title || 'Meeting'} on MeetSphere`,

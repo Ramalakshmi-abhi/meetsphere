@@ -1161,10 +1161,14 @@ export default function MeetingRoom() {
                             </div>
                         </div>
                         <footer className="modal-footer">
-                            <button className="outline-btn" onClick={shareViaEmail} disabled={sendingInvites}>
+                            <a 
+                                href={`mailto:?subject=${encodeURIComponent(buildMeetingEmailDraft({ title: meetingTitle, meetingId: roomId }).subject)}&body=${encodeURIComponent(buildMeetingEmailDraft({ title: meetingTitle, meetingId: roomId }).body)}`}
+                                className={`outline-btn ${sendingInvites ? 'disabled' : ''}`}
+                                style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '8px', pointerEvents: sendingInvites ? 'none' : 'auto' }}
+                            >
                                 <Mail size={18} />
                                 Open Mail App
-                            </button>
+                            </a>
                             <button 
                                 className="primary-btn-modal" 
                                 onClick={sendInviteEmails}
