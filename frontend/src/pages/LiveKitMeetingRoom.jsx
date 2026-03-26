@@ -228,6 +228,7 @@ export default function LiveKitMeetingRoom() {
             title: meetingTitle,
             meetingId: roomId
         });
+        alert('Opening your mail app...');
         const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
         
         // Most robust way across all browsers/OS
