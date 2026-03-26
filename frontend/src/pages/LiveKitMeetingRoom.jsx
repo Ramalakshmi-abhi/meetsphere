@@ -228,16 +228,8 @@ export default function LiveKitMeetingRoom() {
             title: meetingTitle,
             meetingId: roomId
         });
-        alert('Opening your mail app...');
         const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        
-        // Most robust way across all browsers/OS
-        const link = document.createElement('a');
-        link.href = mailto;
-        link.style.display = 'none';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        window.open(mailto, '_self');
     };
 
     const copyToClipboard = () => {
