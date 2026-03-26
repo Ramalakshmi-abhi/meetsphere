@@ -11,9 +11,21 @@ import {
     Video,
     VideoOff,
     X,
+    MessageSquare,
+    UserPlus,
+    BarChart2,
+    MonitorUp,
+    LayoutGrid,
+    MoreHorizontal,
+    ChevronLeft,
+    ChevronRight,
+    Mail
 } from 'lucide-react';
+import io from 'socket.io-client';
+import ChatPanel from '../components/ChatPanel';
 import api, {
     LIVEKIT_URL,
+    SOCKET_URL,
     getAbsoluteUrl,
     getApiErrorMessage,
     withBackendRetry,
@@ -167,10 +179,27 @@ export default function LiveKitMeetingRoom() {
     const [videoOn, setVideoOn] = useState(initialState.camera !== undefined ? initialState.camera : true);
     const [screenShareOn, setScreenShareOn] = useState(false);
     const [showParticipants, setShowParticipants] = useState(false);
+    const [showChat, setShowChat] = useState(false);
+    const [recording, setRecording] = useState(false);
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
     const [logoLoadFailed, setLogoLoadFailed] = useState(false);
     const [localTrackVersion, setLocalTrackVersion] = useState(0);
 
     const roomRef = useRef(null);
+    const socketRef = useRef(null);
+
+    useEffect(() => {
+        socketRef.current = io(SOCKET_URL, { transports: ['websocket', 'polling'] });
+        if (roomId) {
+            socketRef.current.emit('join-room', roomId, user?.id || Date.now());
+        }
+        return () => {
+            if (socketRef.current) socketRef.current.disconnect();
+        };
+    }, [roomId, user?.id]);
+    
+    const toggleRecording = () => setRecording(!recording);
+    const openEmailInviteModal = () => alert('Email invites coming soon!');
 
     const syncRemoteParticipants = useCallback((activeRoom = roomRef.current) => {
         setRemoteParticipants(activeRoom ? Array.from(activeRoom.remoteParticipants.values()) : []);
@@ -596,54 +625,87 @@ export default function LiveKitMeetingRoom() {
                     )}
                 </div>
 
-                <footer className="meeting-controls">
-                    <div className="left-controls">
-                        {hostBranding?.logoUrl && !logoLoadFailed && (
-                            <img
-                                src={getAbsoluteUrl(hostBranding.logoUrl)}
-                                alt="Organization Logo"
-                                onError={() => setLogoLoadFailed(true)}
-                                style={{
-                                    height: '32px',
-                                    marginRight: '1rem',
-                                    borderRadius: '4px',
-                                    objectFit: 'contain',
-                                    background: 'rgba(255,255,255,0.1)',
-                                    padding: '4px',
-                                }}
-                            />
-                        )}
-                        <div>
-                            <span className="meeting-title">{meetingTitle}</span>
-                            <span className="meeting-id" style={{ display: 'block', fontSize: '0.85rem' }}>
-                                ID: {roomId}
-                            </span>
-                        </div>
-                    </div>
-                    <div className="center-controls">
-                        <button onClick={toggleMicrophone} className={micOn ? '' : 'off'}>
-                            {micOn ? <Mic /> : <MicOff />}
+                <div className="gallery-nav left">
+                    <button><ChevronLeft size={32} /></button>
+                </div>
+                <div className="gallery-nav right">
+                    <button><ChevronRight size={32} /></button>
+                </div>
+
+                <footer className="zoom-bottom-bar">
+                    <div className="zoom-left">
+                        <button onClick={toggleMicrophone} className={`zoom-btn ${!micOn ? 'danger' : ''}`}>
+                            <div className="icon-wrapper">
+                                {micOn ? <Mic size={20} /> : <MicOff size={20} />}
+                            </div>
+                            <span>{micOn ? 'Mute' : 'Unmute'}</span>
                         </button>
-                        <button onClick={toggleCamera} className={videoOn ? '' : 'off'}>
-                            {videoOn ? <Video /> : <VideoOff />}
-                        </button>
-                        <button onClick={toggleScreenShare} className={screenShareOn ? 'active' : ''}>
-                            <ScreenShare />
-                        </button>
-                        <button onClick={leaveMeeting} className="end-call">
-                            <PhoneOff />
+                        <button onClick={toggleCamera} className={`zoom-btn ${!videoOn ? 'danger' : ''}`}>
+                            <div className="icon-wrapper">
+                                {videoOn ? <Video size={20} /> : <VideoOff size={20} />}
+                            </div>
+                            <span>{videoOn ? 'Stop Video' : 'Start Video'}</span>
                         </button>
                     </div>
-                    <div className="right-controls">
-                        <button
-                            onClick={() => setShowParticipants((value) => !value)}
-                            className={showParticipants ? 'active' : ''}
-                        >
-                            <Users />
+
+                    <div className="zoom-center">
+                        <button className="zoom-btn" onClick={openEmailInviteModal}>
+                            <UserPlus size={22} />
+                            <span>Invite</span>
+                        </button>
+                        <button className="zoom-btn" onClick={() => { setShowParticipants(!showParticipants); setShowChat(false); }}>
+                            <div className="icon-badge-container">
+                                <Users size={22} />
+                                <div className="badge">{participantCount}</div>
+                            </div>
+                            <span>Manage Participants</span>
+                        </button>
+                        <button className="zoom-btn" onClick={() => alert('Polling coming soon!')}>
+                            <BarChart2 size={22} />
+                            <span>Polling</span>
+                        </button>
+                        <button className="zoom-btn share-btn" onClick={toggleScreenShare}>
+                            <div className="share-icon-wrapper">
+                                <MonitorUp size={22} />
+                            </div>
+                            <span>Share Screen</span>
+                        </button>
+                        <button className="zoom-btn" onClick={() => { setShowChat(!showChat); setShowParticipants(false); }}>
+                            <MessageSquare size={22} />
+                            <span>Chat</span>
+                        </button>
+                        <button className="zoom-btn" onClick={toggleRecording}>
+                            <Circle size={22} fill={recording ? '#ef4444' : 'none'} color={recording ? '#ef4444' : 'currentColor'} />
+                            <span>Record</span>
+                        </button>
+                        <button className="zoom-btn" onClick={() => alert('Breakout rooms coming soon!')}>
+                            <LayoutGrid size={22} />
+                            <span>Breakout Rooms</span>
+                        </button>
+                        <button className="zoom-btn" onClick={() => setShowMoreMenu(!showMoreMenu)}>
+                            <MoreHorizontal size={22} />
+                            <span>More</span>
+                        </button>
+                    </div>
+
+                    <div className="zoom-right">
+                        <button className="zoom-end-btn" onClick={leaveMeeting}>
+                            End Meeting
                         </button>
                     </div>
                 </footer>
             </div>
+
+            {showChat && socketRef.current && (
+                <div className="chat-panel" style={{ position: 'absolute', right: 0, top: 0, height: '100%', zIndex: 1000 }}>
+                    <ChatPanel 
+                        socket={socketRef.current} 
+                        roomId={roomId} 
+                        user={{ name: localParticipantLabel }} 
+                        closeChat={() => setShowChat(false)} 
+                    />
+                </div>
+            )}
 
             {showParticipants && (
                 <div className="participant-panel">

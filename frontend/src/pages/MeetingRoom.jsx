@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import io from 'socket.io-client';
 import api, { IS_LOCAL_DEV_HOST, SOCKET_URL, getAbsoluteUrl, getMeetingUrl, withBackendRetry } from '../api';
 import Peer from 'simple-peer';
-import { Mic, MicOff, Video, VideoOff, PhoneOff, ScreenShare, MoreVertical, MessageSquare, Users, Circle, X, Plus, Mail } from 'lucide-react';
+import { Mic, MicOff, Video, VideoOff, PhoneOff, ScreenShare, MoreVertical, MessageSquare, Users, Circle, X, Plus, Mail, UserPlus, BarChart2, MonitorUp, LayoutGrid, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ChatPanel from '../components/ChatPanel';
 import { buildMeetingEmailDraft, buildMeetingInvite, openWhatsAppInvite } from '../utils/invite';
@@ -1009,7 +1009,6 @@ export default function MeetingRoom() {
                 }}></div>
                 Socket: {socketStatus.toUpperCase()}
             </div>
-
             <div className="meeting-main">
                 <div className="video-grid">
                     <div className="video-card self">
@@ -1025,95 +1024,73 @@ export default function MeetingRoom() {
                         />
                     ))}
                 </div>
+
+                <div className="gallery-nav left">
+                    <button><ChevronLeft size={32} /></button>
+                </div>
+                <div className="gallery-nav right">
+                    <button><ChevronRight size={32} /></button>
+                </div>
                 
-                <footer className="meeting-controls">
-                    <div className="left-controls">
-                        {hostBranding?.logoUrl && !logoLoadFailed && (
-                            <img 
-                                src={getAbsoluteUrl(hostBranding.logoUrl)} 
-                                alt="Organization Logo" 
-                                onError={() => setLogoLoadFailed(true)}
-                                style={{ height: '32px', marginRight: '1rem', borderRadius: '4px', objectFit: 'contain', background: 'rgba(255,255,255,0.1)', padding: '4px' }}
-                            />
-                        )}
-                        {(!hostBranding?.logoUrl || logoLoadFailed) && (
-                            <img
-                                src="/meetsphere-favicon.svg"
-                                alt="MeetSphere"
-                                style={{
-                                    width: '32px',
-                                    height: '32px',
-                                    marginRight: '1rem',
-                                    borderRadius: '8px',
-                                    background: 'rgba(255,255,255,0.12)',
-                                    padding: '4px',
-                                    objectFit: 'contain',
-                                }}
-                            />
-                        )}
-                        <div>
-                            <span className="meeting-title">{meetingTitle}</span>
-                            <span className="meeting-id" style={{ display: 'block', fontSize: '0.85rem' }}>ID: {roomId}</span>
-                        </div>
+                <footer className="zoom-bottom-bar">
+                    <div className="zoom-left">
+                        <button onClick={toggleMic} className={`zoom-btn ${!micOn ? 'danger' : ''}`}>
+                            <div className="icon-wrapper">
+                                {micOn ? <Mic size={20} /> : <MicOff size={20} />}
+                            </div>
+                            <span>{micOn ? 'Mute' : 'Unmute'}</span>
+                        </button>
+                        <button onClick={toggleVideo} className={`zoom-btn ${!videoOn ? 'danger' : ''}`}>
+                            <div className="icon-wrapper">
+                                {videoOn ? <Video size={20} /> : <VideoOff size={20} />}
+                            </div>
+                            <span>{videoOn ? 'Stop Video' : 'Start Video'}</span>
+                        </button>
                     </div>
-                    <div className="center-controls">
-                        <button onClick={toggleMic} className={micOn ? '' : 'off'}>
-                            {micOn ? <Mic /> : <MicOff />}
+
+                    <div className="zoom-center">
+                        <button className="zoom-btn" onClick={openEmailInviteModal}>
+                            <UserPlus size={22} />
+                            <span>Invite</span>
                         </button>
-                        <button onClick={toggleVideo} className={videoOn ? '' : 'off'}>
-                            {videoOn ? <Video /> : <VideoOff />}
+                        <button className="zoom-btn" onClick={() => setShowParticipants(!showParticipants)}>
+                            <div className="icon-badge-container">
+                                <Users size={22} />
+                                <div className="badge">{peers.length + 1}</div>
+                            </div>
+                            <span>Manage Participants</span>
                         </button>
-                        <button onClick={shareScreen} className={screenStream ? 'active' : ''} disabled={meetingOptions?.disableScreenSharing && !isHost} style={{ opacity: (meetingOptions?.disableScreenSharing && !isHost) ? 0.5 : 1, cursor: (meetingOptions?.disableScreenSharing && !isHost) ? 'not-allowed' : 'pointer' }}>
-                            <ScreenShare />
+                        <button className="zoom-btn" onClick={() => alert('Polling coming soon!')}>
+                            <BarChart2 size={22} />
+                            <span>Polling</span>
                         </button>
-                        <button onClick={toggleRecording} className={recording ? 'active recording' : ''}>
-                            <Circle size={20} fill={recording ? '#ef4444' : 'none'} />
+                        <button className="zoom-btn share-btn" onClick={shareScreen}>
+                            <div className="share-icon-wrapper">
+                                <MonitorUp size={22} />
+                            </div>
+                            <span>Share Screen</span>
                         </button>
-                        <button onClick={leaveMeeting} className="end-call"><PhoneOff /></button>
+                        <button className="zoom-btn" onClick={() => setShowChat(!showChat)}>
+                            <MessageSquare size={22} />
+                            <span>Chat</span>
+                        </button>
+                        <button className="zoom-btn" onClick={toggleRecording}>
+                            <Circle size={22} fill={recording ? '#ef4444' : 'none'} color={recording ? '#ef4444' : 'currentColor'} />
+                            <span>Record</span>
+                        </button>
+                        <button className="zoom-btn" onClick={() => alert('Breakout rooms coming soon!')}>
+                            <LayoutGrid size={22} />
+                            <span>Breakout Rooms</span>
+                        </button>
+                        <button className="zoom-btn" onClick={() => setShowMoreMenu(!showMoreMenu)}>
+                            <MoreHorizontal size={22} />
+                            <span>More</span>
+                        </button>
                     </div>
-                    <div className="right-controls">
-                        <button onClick={shareToWhatsAppRoom} title="Share on WhatsApp" className="whatsapp-control-btn">
-                            <WhatsAppIcon />
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowShareModal(!showShareModal);
-                                setShowMoreMenu(false);
-                            }}
-                            className={showShareModal ? 'active' : ''}
-                            title="Share Meeting"
-                        >
-                            <Plus size={20} />
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowChat(!showChat);
-                                setShowShareModal(false);
-                                setShowMoreMenu(false);
-                            }}
-                            className={showChat ? 'active' : ''}
-                        >
-                            <MessageSquare />
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowParticipants(!showParticipants);
-                                setShowShareModal(false);
-                                setShowMoreMenu(false);
-                            }}
-                            className={showParticipants ? 'active' : ''}
-                        >
-                            <Users />
-                        </button>
-                        <button
-                            onClick={() => {
-                                setShowMoreMenu(!showMoreMenu);
-                                setShowShareModal(false);
-                            }}
-                            className={showMoreMenu ? 'active' : ''}
-                            title="More options"
-                        >
-                            <MoreVertical />
+
+                    <div className="zoom-right">
+                        <button className="zoom-end-btn" onClick={leaveMeeting}>
+                            End Meeting
                         </button>
                     </div>
                 </footer>
