@@ -23,11 +23,13 @@ import {
 } from 'lucide-react';
 import io from 'socket.io-client';
 import ChatPanel from '../components/ChatPanel';
+import { buildMeetingEmailDraft, buildMeetingInvite, openWhatsAppInvite } from '../utils/invite';
 import api, {
     LIVEKIT_URL,
     SOCKET_URL,
     getAbsoluteUrl,
     getApiErrorMessage,
+    getMeetingUrl,
     withBackendRetry,
 } from '../api';
 import { useAuth } from '../context/AuthContext';
@@ -182,6 +184,11 @@ export default function LiveKitMeetingRoom() {
     const [showChat, setShowChat] = useState(false);
     const [recording, setRecording] = useState(false);
     const [showMoreMenu, setShowMoreMenu] = useState(false);
+    const [showEmailInviteModal, setShowEmailInviteModal] = useState(false);
+    const [inviteEmails, setInviteEmails] = useState('');
+    const [isSendingInvite, setIsSendingInvite] = useState(false);
+    const [inviteError, setInviteError] = useState('');
+    const [inviteSuccess, setInviteSuccess] = useState('');
     const [logoLoadFailed, setLogoLoadFailed] = useState(false);
     const [localTrackVersion, setLocalTrackVersion] = useState(0);
 
@@ -199,7 +206,51 @@ export default function LiveKitMeetingRoom() {
     }, [roomId, user?.id]);
     
     const toggleRecording = () => setRecording(!recording);
-    const openEmailInviteModal = () => alert('Email invites coming soon!');
+    
+    const openEmailInviteModal = () => {
+        setInviteError('');
+        setInviteSuccess('');
+        setShowEmailInviteModal(true);
+    };
+
+    const handleWhatsAppInvite = () => {
+        const invite = buildMeetingInvite({
+            title: meetingTitle,
+            meetingId: roomId
+        });
+        openWhatsAppInvite(invite.text);
+    };
+
+    const handleOpenMailApp = () => {
+        const { subject, body } = buildMeetingEmailDraft({
+            title: meetingTitle,
+            meetingId: roomId
+        });
+        // TO is empty as requested, content has ID, location, time, date
+        window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    };
+
+    const handleSendEmailInvite = async () => {
+        if (!inviteEmails.trim()) {
+            setInviteError('Please enter at least one email address.');
+            return;
+        }
+
+        setIsSendingInvite(true);
+        setInviteError('');
+        setInviteSuccess('');
+
+        try {
+            const emails = inviteEmails.split(',').map(e => e.trim()).filter(Boolean);
+            await api.post(`/api/meeting/${roomId}/invite`, { emails });
+            setInviteSuccess('Invitations sent successfully!');
+            setInviteEmails('');
+        } catch (error) {
+            setInviteError(getApiErrorMessage(error, 'Failed to send invites. Make sure you are logged in.'));
+        } finally {
+            setIsSendingInvite(false);
+        }
+    };
 
     const syncRemoteParticipants = useCallback((activeRoom = roomRef.current) => {
         setRemoteParticipants(activeRoom ? Array.from(activeRoom.remoteParticipants.values()) : []);
@@ -711,21 +762,83 @@ export default function LiveKitMeetingRoom() {
                 <div className="participant-panel">
                     <header className="panel-header">
                         <h3>Participants ({participantCount})</h3>
-                        <button onClick={() => setShowParticipants(false)}>
+                        <button className="close-panel" onClick={() => setShowParticipants(false)}>
                             <X size={20} />
                         </button>
                     </header>
-                    <div className="participant-list">
-                        <div className="participant-item">
-                            <div className="avatar small">{getParticipantInitial({ name: localParticipantLabel }, 'Y')}</div>
-                            <span>{localParticipantLabel} (You)</span>
+                    <div className="panel-content">
+                        <div className="participant-item local">
+                            <div className="p-avatar">
+                                {localParticipantLabel.charAt(0).toUpperCase()}
+                            </div>
+                            <span className="p-name">{localParticipantLabel} (You, Host)</span>
+                            <div className="p-status">
+                                {micOn ? <Mic size={16} /> : <MicOff size={16} color="#ef4444" />}
+                                {videoOn ? <Video size={16} /> : <VideoOff size={16} color="#ef4444" />}
+                            </div>
                         </div>
-                        {remoteParticipants.map((participant) => (
-                            <div key={participant.identity} className="participant-item">
-                                <div className="avatar small">{getParticipantInitial(participant)}</div>
-                                <span>{getParticipantLabel(participant)}</span>
+                        {remoteParticipants.map((p) => (
+                            <div key={p.identity} className="participant-item">
+                                <div className="p-avatar">
+                                    {getParticipantInitial(p)}
+                                </div>
+                                <span className="p-name">{getParticipantLabel(p)}</span>
+                                <div className="p-status">
+                                    <Mic size={16} />
+                                    <Video size={16} />
+                                </div>
                             </div>
                         ))}
+                    </div>
+                </div>
+            )}
+
+            {showEmailInviteModal && (
+                <div className="meeting-modal-overlay">
+                    <div className="meeting-modal email-invite-modal">
+                        <header className="modal-header">
+                            <h3>Email Invite</h3>
+                            <button className="close-modal" onClick={() => setShowEmailInviteModal(false)}>
+                                <X size={20} />
+                            </button>
+                        </header>
+                        <div className="modal-body">
+                            <p className="modal-subtitle">Send this quick meeting to one or more participants.</p>
+                            
+                            <div className="form-group">
+                                <label>To</label>
+                                <textarea 
+                                    className="invite-textarea"
+                                    placeholder="teammate@company.com, guest@example.com"
+                                    value={inviteEmails}
+                                    onChange={(e) => setInviteEmails(e.target.value)}
+                                />
+                                <span className="form-hint">Example: teammate@company.com, guest@example.com</span>
+                            </div>
+
+                            {inviteError && <p className="modal-error-text">{inviteError}</p>}
+                            {inviteSuccess && <p className="modal-success-text">{inviteSuccess}</p>}
+
+                            <div className="invite-social-options">
+                                <button className="whatsapp-option-btn" onClick={handleWhatsAppInvite}>
+                                    <WhatsAppIcon />
+                                    <span>Share via WhatsApp</span>
+                                </button>
+                            </div>
+                        </div>
+                        <footer className="modal-footer">
+                            <button className="outline-btn" onClick={handleOpenMailApp}>
+                                <Mail size={18} />
+                                Open Mail App
+                            </button>
+                            <button 
+                                className="primary-btn-modal" 
+                                onClick={handleSendEmailInvite}
+                                disabled={isSendingInvite}
+                            >
+                                {isSendingInvite ? 'Sending...' : 'Send Invite'}
+                            </button>
+                        </footer>
                     </div>
                 </div>
             )}

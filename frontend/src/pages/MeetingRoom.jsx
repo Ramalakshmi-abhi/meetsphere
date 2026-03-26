@@ -825,13 +825,8 @@ export default function MeetingRoom() {
             title: meetingTitle,
             meetingId: roomId,
         });
-        const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        const gmailComposeUrl = `https://mail.google.com/mail/?view=cm&fs=1&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        const composeWindow = window.open(gmailComposeUrl, '_blank', 'noopener,noreferrer');
-
-        if (!composeWindow) {
-            window.location.href = mailtoLink;
-        }
+        // TO is empty as requested
+        window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     };
 
     const sendInviteEmails = async () => {
@@ -1120,39 +1115,50 @@ export default function MeetingRoom() {
             )}
             {showEmailInviteModal && (
                 <div className="meeting-modal-overlay" onClick={() => !sendingInvites && setShowEmailInviteModal(false)}>
-                    <div className="meeting-modal" onClick={(e) => e.stopPropagation()}>
-                        <div className="meeting-modal-header">
-                            <div>
-                                <h3>Email Invite</h3>
-                                <p>Send this quick meeting to one or more participants.</p>
+                    <div className="meeting-modal email-invite-modal" onClick={(e) => e.stopPropagation()}>
+                        <header className="modal-header">
+                            <h3>Email Invite</h3>
+                            <button className="close-modal" onClick={() => !sendingInvites && setShowEmailInviteModal(false)}>
+                                <X size={20} />
+                            </button>
+                        </header>
+                        <div className="modal-body">
+                            <p className="modal-subtitle">Send this quick meeting to one or more participants.</p>
+                            
+                            <div className="form-group">
+                                <label>To</label>
+                                <textarea 
+                                    className="invite-textarea"
+                                    placeholder="teammate@company.com, guest@example.com"
+                                    value={inviteEmails}
+                                    onChange={(e) => setInviteEmails(e.target.value)}
+                                    disabled={sendingInvites}
+                                />
+                                <span className="form-hint">Example: teammate@company.com, guest@example.com</span>
                             </div>
-                            <button
-                                type="button"
-                                className="meeting-modal-close"
-                                onClick={() => !sendingInvites && setShowEmailInviteModal(false)}
-                            >
-                                <X size={18} />
-                            </button>
+
+                            {inviteEmailError && <p className="modal-error-text">{inviteEmailError}</p>}
+
+                            <div className="invite-social-options">
+                                <button className="whatsapp-option-btn" onClick={shareToWhatsAppRoom}>
+                                    <WhatsAppIcon />
+                                    <span>Share via WhatsApp</span>
+                                </button>
+                            </div>
                         </div>
-                        <label className="meeting-modal-label" htmlFor="invite-emails">To</label>
-                        <textarea
-                            id="invite-emails"
-                            className="meeting-modal-textarea"
-                            placeholder="Enter one or more email addresses, separated by commas"
-                            value={inviteEmails}
-                            onChange={(e) => setInviteEmails(e.target.value)}
-                            disabled={sendingInvites}
-                        />
-                        <p className="meeting-modal-hint">Example: teammate@company.com, guest@example.com</p>
-                        {inviteEmailError && <p className="meeting-modal-error">{inviteEmailError}</p>}
-                        <div className="meeting-modal-actions">
-                            <button type="button" className="btn-secondary" onClick={shareViaEmail} disabled={sendingInvites}>
-                                <Mail size={16} /> Open Mail App
+                        <footer className="modal-footer">
+                            <button className="outline-btn" onClick={shareViaEmail} disabled={sendingInvites}>
+                                <Mail size={18} />
+                                Open Mail App
                             </button>
-                            <button type="button" className="meeting-send-btn" onClick={sendInviteEmails} disabled={sendingInvites}>
+                            <button 
+                                className="primary-btn-modal" 
+                                onClick={sendInviteEmails}
+                                disabled={sendingInvites}
+                            >
                                 {sendingInvites ? 'Sending...' : 'Send Invite'}
                             </button>
-                        </div>
+                        </footer>
                     </div>
                 </div>
             )}
@@ -1227,4 +1233,6 @@ const VideoComponent = ({ peerName, remoteStream }) => {
             <div className="video-label">{peerName || 'User'}</div>
         </div>
     );
-};
+}
+
+;
