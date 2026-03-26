@@ -828,17 +828,14 @@ export default function MeetingRoom() {
             meetingId: roomId,
         });
         const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        console.log('Opening Mail App:', mailto.substring(0, 50) + '...');
+        console.log('Final Mail Trial:', mailto.substring(0, 50));
         
-        // High-compatibility hidden anchor with target="_blank"
         const link = document.createElement('a');
         link.href = mailto;
-        link.target = '_blank';
         link.style.display = 'none';
         document.body.appendChild(link);
         link.click();
         
-        // Cleanup with a delay to ensure the browser processes the click
         setTimeout(() => {
             if (document.body.contains(link)) {
                 document.body.removeChild(link);

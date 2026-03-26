@@ -55,12 +55,7 @@ export const buildMeetingEmailDraft = ({ title = 'Meeting', meetingId = '', pass
     const { url, dateString, timeString } = buildMeetingInvite({ title, meetingId, passcode, startTime });
     const resolvedMeetingId = String(meetingId || passcode || '').trim();
     const bodyLines = [
-        'You have been invited to a video meeting on MeetSphere.',
-        '',
-        `Topic: ${title || 'Meeting'}`,
-        `Date: ${dateString}`,
-        `Time: ${timeString}`,
-        'Location: MeetSphere Web',
+        `Join the MeetSphere meeting: ${url}`
     ];
 
     if (resolvedMeetingId) {
