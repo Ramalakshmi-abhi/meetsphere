@@ -228,12 +228,8 @@ export default function LiveKitMeetingRoom() {
             title: meetingTitle,
             meetingId: roomId
         });
-        // Use a hidden anchor to trigger mailto reliably
         const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        const link = document.createElement('a');
-        link.href = mailto;
-        link.target = '_blank';
-        link.click();
+        window.location.assign(mailto);
     };
 
     const copyToClipboard = () => {
