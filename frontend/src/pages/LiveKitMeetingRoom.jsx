@@ -184,6 +184,8 @@ export default function LiveKitMeetingRoom() {
     const [showChat, setShowChat] = useState(false);
     const [recording, setRecording] = useState(false);
     const [showMoreMenu, setShowMoreMenu] = useState(false);
+    const [showPollingModal, setShowPollingModal] = useState(false);
+    const [showBreakoutModal, setShowBreakoutModal] = useState(false);
     const [showEmailInviteModal, setShowEmailInviteModal] = useState(false);
     const [inviteEmails, setInviteEmails] = useState('');
     const [isSendingInvite, setIsSendingInvite] = useState(false);
@@ -226,8 +228,20 @@ export default function LiveKitMeetingRoom() {
             title: meetingTitle,
             meetingId: roomId
         });
-        // TO is empty as requested, content has ID, location, time, date
-        window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        // Use a hidden anchor to trigger mailto reliably
+        const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        const link = document.createElement('a');
+        link.href = mailto;
+        link.target = '_blank';
+        link.click();
+    };
+
+    const copyToClipboard = () => {
+        const url = getMeetingUrl(roomId);
+        navigator.clipboard.writeText(url);
+        setShowMoreMenu(false);
+        setInviteSuccess('Meeting link copied to clipboard!');
+        setTimeout(() => setInviteSuccess(''), 3000);
     };
 
     const handleSendEmailInvite = async () => {
@@ -711,7 +725,7 @@ export default function LiveKitMeetingRoom() {
                             </div>
                             <span>Manage Participants</span>
                         </button>
-                        <button className="zoom-btn" onClick={() => alert('Polling coming soon!')}>
+                        <button className="zoom-btn" onClick={() => setShowPollingModal(true)}>
                             <BarChart2 size={22} />
                             <span>Polling</span>
                         </button>
@@ -729,7 +743,7 @@ export default function LiveKitMeetingRoom() {
                             <Circle size={22} fill={recording ? '#ef4444' : 'none'} color={recording ? '#ef4444' : 'currentColor'} />
                             <span>Record</span>
                         </button>
-                        <button className="zoom-btn" onClick={() => alert('Breakout rooms coming soon!')}>
+                        <button className="zoom-btn" onClick={() => setShowBreakoutModal(true)}>
                             <LayoutGrid size={22} />
                             <span>Breakout Rooms</span>
                         </button>
@@ -837,6 +851,54 @@ export default function LiveKitMeetingRoom() {
                                 disabled={isSendingInvite}
                             >
                                 {isSendingInvite ? 'Sending...' : 'Send Invite'}
+                            </button>
+                        </footer>
+                    </div>
+                </div>
+            )}
+            {showMoreMenu && (
+                <div className="more-popover">
+                    <h4>Meeting Options</h4>
+                    <div className="more-options">
+                        <button onClick={copyToClipboard} className="btn-secondary">Copy Invite Link</button>
+                        <button onClick={openEmailInviteModal} className="btn-secondary">Email Invite</button>
+                        <button onClick={() => { setShowParticipants(true); setShowMoreMenu(false); }} className="btn-secondary">View Participants</button>
+                        <button onClick={() => { setShowChat(true); setShowMoreMenu(false); }} className="btn-secondary">Open Chat</button>
+                    </div>
+                </div>
+            )}
+
+            {(showPollingModal || showBreakoutModal) && (
+                <div className="meeting-modal-overlay" onClick={() => { setShowPollingModal(false); setShowBreakoutModal(false); }}>
+                    <div className="meeting-modal coming-soon-modal" onClick={(e) => e.stopPropagation()}>
+                        <header className="modal-header">
+                            <h3>{showPollingModal ? 'Polling' : 'Breakout Rooms'}</h3>
+                            <button className="close-modal" onClick={() => { setShowPollingModal(false); setShowBreakoutModal(false); }}>
+                                <X size={20} />
+                            </button>
+                        </header>
+                        <div className="modal-body" style={{ textAlign: 'center', padding: '2rem 1rem' }}>
+                            <div style={{ 
+                                width: '64px', 
+                                height: '64px', 
+                                background: 'rgba(99, 102, 241, 0.1)', 
+                                color: '#6366f1', 
+                                borderRadius: '50%', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center',
+                                margin: '0 auto 1.5rem auto'
+                            }}>
+                                {showPollingModal ? <BarChart2 size={32} /> : <LayoutGrid size={32} />}
+                            </div>
+                            <h4 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: 'white' }}>Coming Soon</h4>
+                            <p style={{ color: '#94a3b8', fontSize: '0.95rem' }}>
+                                We are currently developing this feature to provide you with a world-class experience. Stay tuned for future updates!
+                            </p>
+                        </div>
+                        <footer className="modal-footer" style={{ justifyContent: 'center' }}>
+                            <button className="primary-btn-modal" onClick={() => { setShowPollingModal(false); setShowBreakoutModal(false); }}>
+                                Got it
                             </button>
                         </footer>
                     </div>

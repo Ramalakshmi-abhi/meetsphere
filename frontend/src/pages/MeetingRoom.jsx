@@ -81,6 +81,8 @@ export default function MeetingRoom() {
     const [inviteEmailError, setInviteEmailError] = useState('');
     const [sendingInvites, setSendingInvites] = useState(false);
     const [roomLimitMessage, setRoomLimitMessage] = useState('');
+    const [showPollingModal, setShowPollingModal] = useState(false);
+    const [showBreakoutModal, setShowBreakoutModal] = useState(false);
 
     const userVideo = useRef();
     const peersRef = useRef([]);
@@ -825,8 +827,12 @@ export default function MeetingRoom() {
             title: meetingTitle,
             meetingId: roomId,
         });
-        // TO is empty as requested
-        window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        
+        const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        const link = document.createElement('a');
+        link.href = mailto;
+        link.target = '_blank';
+        link.click();
     };
 
     const sendInviteEmails = async () => {
@@ -1055,7 +1061,7 @@ export default function MeetingRoom() {
                             </div>
                             <span>Manage Participants</span>
                         </button>
-                        <button className="zoom-btn" onClick={() => alert('Polling coming soon!')}>
+                        <button className="zoom-btn" onClick={() => setShowPollingModal(true)}>
                             <BarChart2 size={22} />
                             <span>Polling</span>
                         </button>
@@ -1073,7 +1079,7 @@ export default function MeetingRoom() {
                             <Circle size={22} fill={recording ? '#ef4444' : 'none'} color={recording ? '#ef4444' : 'currentColor'} />
                             <span>Record</span>
                         </button>
-                        <button className="zoom-btn" onClick={() => alert('Breakout rooms coming soon!')}>
+                        <button className="zoom-btn" onClick={() => setShowBreakoutModal(true)}>
                             <LayoutGrid size={22} />
                             <span>Breakout Rooms</span>
                         </button>
