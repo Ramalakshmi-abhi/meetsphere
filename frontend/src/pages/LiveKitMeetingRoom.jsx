@@ -229,7 +229,14 @@ export default function LiveKitMeetingRoom() {
             meetingId: roomId
         });
         const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        window.location.href = mailto;
+        
+        // Most robust way across all browsers/OS
+        const link = document.createElement('a');
+        link.href = mailto;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const copyToClipboard = () => {

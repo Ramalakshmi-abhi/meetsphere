@@ -829,7 +829,12 @@ export default function MeetingRoom() {
         });
         
         const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-        window.location.assign(mailto);
+        const link = document.createElement('a');
+        link.href = mailto;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const sendInviteEmails = async () => {
