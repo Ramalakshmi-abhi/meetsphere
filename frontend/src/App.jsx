@@ -21,6 +21,7 @@ import DeveloperSettings from './pages/DeveloperSettings';
 import DeveloperDocs from './pages/DeveloperDocs';
 import MeetingSettings from './pages/MeetingSettings';
 import BrandedConference from './pages/BrandedConference';
+import Messages from './pages/Messages';
 import { ENABLE_LIVEKIT } from './api';
 import './App.css';
 
@@ -46,6 +47,7 @@ const routeTitles = {
     '/developers/docs': 'Developer Docs - MeetSphere',
     '/settings': 'Meeting Settings - MeetSphere',
     '/branded': 'Branded Conference - MeetSphere',
+    '/messages': 'Messages - MeetSphere',
     '/admin': 'Admin Dashboard - MeetSphere',
     '/': 'MeetSphere',
 };
@@ -105,6 +107,7 @@ function App() {
                         <Route path="/developers/docs" element={<PrivateRoute><DeveloperDocs /></PrivateRoute>} />
                         <Route path="/settings" element={<PrivateRoute><MeetingSettings /></PrivateRoute>} />
                         <Route path="/branded" element={<PrivateRoute><BrandedConference /></PrivateRoute>} />
+                        <Route path="/messages" element={<PrivateRoute><Messages /></PrivateRoute>} />
 
                         {/* Direct Room Route (Usually no sidebar) */}
                         <Route 

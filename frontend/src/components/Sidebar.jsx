@@ -13,7 +13,8 @@ import {
     Settings, 
     Monitor,
     CreditCard,
-    LogOut
+    LogOut,
+    MessageSquare
 } from 'lucide-react';
 import './Sidebar.css';
 import { useAuth } from '../context/AuthContext';
@@ -29,6 +30,7 @@ const Sidebar = () => {
         { icon: <Calendar size={20} />, label: 'Schedule Meeting', path: '/schedule' },
         { icon: <CreditCard size={20} />, label: 'My Subscription', path: '/subscription' },
         { icon: <Users size={20} />, label: 'My Contacts', path: '/contacts' },
+        { icon: <MessageSquare size={20} />, label: 'Messages', path: '/messages' },
         { icon: <PlayCircle size={20} />, label: 'Recordings', path: '/recordings' },
         { icon: <BarChart3 size={20} />, label: 'Analytics', path: '/analytics' },
         { icon: <FileText size={20} />, label: 'Invoices', path: '/invoices' },
