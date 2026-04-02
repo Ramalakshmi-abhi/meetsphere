@@ -1,58 +1,186 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Send, X, ExternalLink, Paperclip, Copy, Smile, MoreHorizontal, ThumbsUp, Heart } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Send, X, ExternalLink, Paperclip, Copy, Smile, MoreHorizontal } from 'lucide-react';
 import './ChatPanel.css';
 
-export default function ChatPanel({ socket, roomId, user, closeChat }) {
+export default function ChatPanel({ socket, roomId, user, closeChat, socketConnected }) {
     const [message, setMessage] = useState('');
     const [chatHistory, setChatHistory] = useState([]);
     const [activeTab, setActiveTab] = useState('main');
+    const [status, setStatus] = useState({ type: '', text: '' });
+    const [isConnected, setIsConnected] = useState(Boolean(socketConnected ?? socket?.connected));
     const messagesEndRef = useRef(null);
+    const fileInputRef = useRef(null);
+    const statusTimerRef = useRef(null);
 
-    // Some dummy messages to populate the UI initially to match the screenshot
-    useEffect(() => {
-        setChatHistory([
-            { id: 1, sender: 'ML', text: 'Ok phew 😂', time: '12:00 PM', isDummy: true },
-            { id: 2, sender: 'Anthony Rios', text: 'Anyone have the slide deck I can download? Appreciate it', time: '12:01 PM', avatar: 'https://i.pravatar.cc/150?u=a', isDummy: true },
-            { id: 3, sender: 'Robert Smith', text: 'Just DM-ed you!', time: '12:02 PM', avatar: 'https://i.pravatar.cc/150?u=r', reactions: [{ emoji: '👍', count: 1 }], isDummy: true },
-            { id: 4, sender: 'Anthony Rios', text: 'Thanks Robert!', time: '12:02 PM', avatar: 'https://i.pravatar.cc/150?u=a', isDummy: true },
-            { id: 5, sender: user.name, text: 'Thank you, everyone, for attending today’s marketing kickoff! Can’t wait for what the next quarter is about to bring. Enjoy your weekends 😊', time: '12:29 PM', avatar: 'https://i.pravatar.cc/150?u=y', reactions: [{ emoji: '👍', count: 6 }, { emoji: '💙', count: 15 }], isDummy: true },
-        ]);
-    }, [user.name]);
+    const senderName = String(user?.name || 'Guest').trim() || 'Guest';
 
-    useEffect(() => {
-        const handleMessage = (data) => {
-            setChatHistory(prev => [...prev, { ...data, id: Date.now() }]);
+    const clearStatusTimer = () => {
+        if (statusTimerRef.current) {
+            window.clearTimeout(statusTimerRef.current);
+            statusTimerRef.current = null;
+        }
+    };
+
+    const showStatus = useCallback((type, text) => {
+        clearStatusTimer();
+        setStatus({ type, text });
+        statusTimerRef.current = window.setTimeout(() => {
+            setStatus({ type: '', text: '' });
+            statusTimerRef.current = null;
+        }, 2800);
+    }, []);
+
+    const appendIncomingMessage = useCallback((incoming) => {
+        const normalized = {
+            ...incoming,
+            id: incoming?.id
+                || incoming?.messageId
+                || `${incoming?.sender || 'user'}-${incoming?.time || Date.now()}-${incoming?.text || ''}`,
         };
+
+        setChatHistory((prev) => {
+            if (prev.some((entry) => entry.id === normalized.id)) {
+                return prev;
+            }
+            return [...prev, normalized];
+        });
+    }, []);
+
+    useEffect(() => {
+        if (!socket) {
+            setIsConnected(false);
+            return undefined;
+        }
+
+        const handleConnect = () => setIsConnected(true);
+        const handleDisconnect = () => setIsConnected(false);
+        const handleMessage = (data) => appendIncomingMessage(data);
+
+        setIsConnected(Boolean(socketConnected ?? socket.connected));
+
+        socket.on('connect', handleConnect);
+        socket.on('disconnect', handleDisconnect);
         socket.on('message-received', handleMessage);
-        return () => socket.off('message-received', handleMessage);
-    }, [socket]);
+
+        return () => {
+            socket.off('connect', handleConnect);
+            socket.off('disconnect', handleDisconnect);
+            socket.off('message-received', handleMessage);
+        };
+    }, [appendIncomingMessage, socket, socketConnected]);
+
+    useEffect(() => {
+        setIsConnected(Boolean(socketConnected ?? socket?.connected));
+    }, [socket, socketConnected]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [chatHistory]);
 
-    const sendMessage = (e) => {
-        e.preventDefault();
-        if (message.trim()) {
-            const data = {
-                roomID: roomId,
-                sender: user.name,
-                text: message,
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-            };
-            socket.emit('send-message', data);
-            setMessage('');
+    useEffect(() => () => {
+        clearStatusTimer();
+    }, []);
+
+    const sendMessage = (event) => {
+        event.preventDefault();
+        const trimmed = message.trim();
+        if (!trimmed) {
+            return;
         }
+
+        if (!socket || !socket.connected) {
+            showStatus('error', 'Chat server disconnected. Please wait for reconnection.');
+            return;
+        }
+
+        const payload = {
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            roomID: roomId,
+            sender: senderName,
+            text: trimmed,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        };
+
+        appendIncomingMessage(payload);
+        socket.emit('send-message', payload);
+        setMessage('');
+        setStatus({ type: '', text: '' });
+    };
+
+    const popOutChat = () => {
+        window.open('/messages', '_blank', 'noopener,noreferrer');
+    };
+
+    const openColleaguesTab = () => {
+        setActiveTab('colleagues');
+        showStatus('info', 'Direct messages are coming soon. Use Main chat for now.');
+    };
+
+    const toggleBoldDraft = () => {
+        const trimmed = message.trim();
+        if (!trimmed) {
+            return;
+        }
+
+        if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+            setMessage(trimmed.slice(2, -2));
+            return;
+        }
+
+        setMessage(`**${trimmed}**`);
+    };
+
+    const attachFile = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileSelected = (event) => {
+        const files = Array.from(event.target.files || []);
+        if (files.length === 0) {
+            return;
+        }
+
+        const labels = files.map((file) => `[Attachment: ${file.name}]`).join(' ');
+        setMessage((prev) => `${prev}${prev ? ' ' : ''}${labels}`);
+        showStatus('info', 'Attachment name added to draft. Upload support is coming soon.');
+        event.target.value = '';
+    };
+
+    const copyDraft = async () => {
+        const trimmed = message.trim();
+        if (!trimmed) {
+            showStatus('info', 'Write a message first, then copy.');
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(trimmed);
+            showStatus('info', 'Draft copied to clipboard.');
+        } catch {
+            showStatus('error', 'Unable to copy draft on this browser.');
+        }
+    };
+
+    const addEmoji = () => {
+        setMessage((prev) => `${prev}${prev ? ' ' : ''}\u{1F60A}`);
+    };
+
+    const insertQuickReaction = () => {
+        setMessage((prev) => `${prev}${prev ? ' ' : ''}\u{1F44D}`);
     };
 
     return (
         <div className="modern-chat-panel">
             <header className="m-chat-header">
-                <div className="empty-spacer"></div>
+                <div className="empty-spacer" />
                 <h3>Meeting Chat</h3>
                 <div className="m-chat-header-actions">
-                    <button><ExternalLink size={18} /></button>
-                    <button onClick={closeChat}><X size={20} /></button>
+                    <button type="button" onClick={popOutChat} title="Open full chat">
+                        <ExternalLink size={18} />
+                    </button>
+                    <button type="button" onClick={closeChat} title="Close chat">
+                        <X size={20} />
+                    </button>
                 </div>
             </header>
 
@@ -63,7 +191,7 @@ export default function ChatPanel({ socket, roomId, user, closeChat }) {
                     </div>
                     <span>Main chat</span>
                 </button>
-                <button className={`m-tab ${activeTab === 'colleagues' ? 'active' : ''}`} onClick={() => setActiveTab('colleagues')}>
+                <button className={`m-tab ${activeTab === 'colleagues' ? 'active' : ''}`} onClick={openColleaguesTab}>
                     <div className="m-tab-icon avatars-icon">
                         <img src="https://i.pravatar.cc/150?u=1" alt="avatar" className="tiny-avatar" />
                         <img src="https://i.pravatar.cc/150?u=2" alt="avatar" className="tiny-avatar overlap" />
@@ -74,16 +202,22 @@ export default function ChatPanel({ socket, roomId, user, closeChat }) {
             </div>
 
             <div className="m-chat-messages">
+                {chatHistory.length === 0 && (
+                    <div className="m-empty-state">
+                        {isConnected ? 'No messages yet. Start the conversation.' : 'Chat disconnected. Reconnecting...'}
+                    </div>
+                )}
+
                 {chatHistory.map((msg) => {
-                    const isOwn = msg.sender === user.name;
+                    const isOwn = msg.sender === senderName;
                     return (
                         <div key={msg.id} className={`m-message-row ${isOwn ? 'own-row' : ''}`}>
                             {!isOwn && (
                                 <div className="m-avatar">
-                                    {msg.avatar ? <img src={msg.avatar} alt={msg.sender} /> : msg.sender.substring(0,2).toUpperCase()}
+                                    {msg.avatar ? <img src={msg.avatar} alt={msg.sender} /> : msg.sender.substring(0, 2).toUpperCase()}
                                 </div>
                             )}
-                            
+
                             <div className="m-message-content">
                                 {!isOwn && (
                                     <div className="m-message-info">
@@ -97,16 +231,16 @@ export default function ChatPanel({ socket, roomId, user, closeChat }) {
                                         <span className="m-sender-time">{msg.time}</span>
                                     </div>
                                 )}
-                                
+
                                 <div className={`m-bubble ${isOwn ? 'own-bubble' : ''}`}>
                                     {msg.text}
                                 </div>
-                                
-                                {msg.reactions && msg.reactions.length > 0 && (
+
+                                {Array.isArray(msg.reactions) && msg.reactions.length > 0 && (
                                     <div className={`m-reactions ${isOwn ? 'own-reactions' : ''}`}>
-                                        {msg.reactions.map((r, i) => (
-                                            <div key={i} className="m-reaction">
-                                                {r.emoji} <span className="m-reaction-count">{r.count}</span>
+                                        {msg.reactions.map((reaction, index) => (
+                                            <div key={index} className="m-reaction">
+                                                {reaction.emoji} <span className="m-reaction-count">{reaction.count}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -120,25 +254,44 @@ export default function ChatPanel({ socket, roomId, user, closeChat }) {
 
             <div className="m-chat-footer">
                 <div className="m-chat-visibility">
-                    <UserIconSmall /> Who can see your messages?
+                    <UserIconSmall /> Who can see your messages? Everyone in this room
                 </div>
-                
+
+                {!isConnected && (
+                    <div className="m-chat-status error">
+                        Chat server disconnected. Messages will send once connection returns.
+                    </div>
+                )}
+                {status.text && (
+                    <div className={`m-chat-status ${status.type === 'error' ? 'error' : ''}`}>
+                        {status.text}
+                    </div>
+                )}
+
                 <form className="m-chat-input-area" onSubmit={sendMessage}>
-                    <input 
-                        type="text" 
-                        placeholder="Message everyone" 
+                    <input
+                        type="text"
+                        placeholder={isConnected ? 'Message everyone' : 'Waiting for chat reconnection...'}
                         value={message}
-                        onChange={(e) => setMessage(e.target.value)}
+                        onChange={(event) => setMessage(event.target.value)}
                     />
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        className="m-hidden-file-input"
+                        onChange={handleFileSelected}
+                        multiple
+                    />
+
                     <div className="m-chat-toolbar">
                         <div className="m-toolbar-left">
-                            <button type="button" title="Format"><span className="format-icon">A</span></button>
-                            <button type="button" title="Attach"><Paperclip size={18} /></button>
-                            <button type="button" title="Copy"><Copy size={18} /></button>
-                            <button type="button" title="Emoji"><Smile size={18} /></button>
-                            <button type="button" title="More"><MoreHorizontal size={18} /></button>
+                            <button type="button" title="Bold draft" onClick={toggleBoldDraft}><span className="format-icon">A</span></button>
+                            <button type="button" title="Attach file" onClick={attachFile}><Paperclip size={18} /></button>
+                            <button type="button" title="Copy draft" onClick={copyDraft}><Copy size={18} /></button>
+                            <button type="button" title="Insert emoji" onClick={addEmoji}><Smile size={18} /></button>
+                            <button type="button" title="Insert thumbs up" onClick={insertQuickReaction}><MoreHorizontal size={18} /></button>
                         </div>
-                        <button type="submit" className="m-send-btn" disabled={!message.trim()}>
+                        <button type="submit" className="m-send-btn" disabled={!message.trim() || !isConnected}>
                             <Send size={18} />
                         </button>
                     </div>
@@ -150,16 +303,16 @@ export default function ChatPanel({ socket, roomId, user, closeChat }) {
 
 const UsersIcon = () => (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
-        <circle cx="9" cy="7" r="4"></circle>
-        <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
-        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
     </svg>
 );
 
 const UserIconSmall = () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-        <circle cx="12" cy="7" r="4"></circle>
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
     </svg>
 );

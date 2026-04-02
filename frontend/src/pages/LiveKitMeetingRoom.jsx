@@ -25,6 +25,7 @@ import io from 'socket.io-client';
 import ChatPanel from '../components/ChatPanel';
 import { buildMeetingInvite, openMeetingGmailDraft, openWhatsAppInvite } from '../utils/invite';
 import api, {
+    IS_LOCAL_DEV_HOST,
     LIVEKIT_URL,
     SOCKET_URL,
     getAbsoluteUrl,
@@ -193,19 +194,60 @@ export default function LiveKitMeetingRoom() {
     const [inviteSuccess, setInviteSuccess] = useState('');
     const [logoLoadFailed, setLogoLoadFailed] = useState(false);
     const [localTrackVersion, setLocalTrackVersion] = useState(0);
+    const [chatSocketConnected, setChatSocketConnected] = useState(false);
 
     const roomRef = useRef(null);
     const socketRef = useRef(null);
 
     useEffect(() => {
-        socketRef.current = io(SOCKET_URL, { transports: ['websocket', 'polling'] });
-        if (roomId) {
-            socketRef.current.emit('join-room', roomId, user?.id || Date.now());
-        }
-        return () => {
-            if (socketRef.current) socketRef.current.disconnect();
+        const socket = io(IS_LOCAL_DEV_HOST ? undefined : SOCKET_URL, {
+            path: '/socket.io',
+            transports: IS_LOCAL_DEV_HOST ? ['websocket'] : ['polling', 'websocket'],
+            withCredentials: true,
+            reconnection: true,
+            reconnectionAttempts: 12,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            timeout: 20000,
+        });
+
+        socketRef.current = socket;
+
+        const joinRoomForChat = () => {
+            if (!roomId) {
+                return;
+            }
+            socket.emit('join-room', roomId, socket.id, user?.name || 'Guest');
         };
-    }, [roomId, user?.id]);
+
+        const handleConnect = () => {
+            setChatSocketConnected(true);
+            joinRoomForChat();
+        };
+
+        const handleDisconnect = () => {
+            setChatSocketConnected(false);
+        };
+
+        socket.on('connect', handleConnect);
+        socket.on('disconnect', handleDisconnect);
+
+        if (socket.connected) {
+            handleConnect();
+        }
+
+        return () => {
+            socket.off('connect', handleConnect);
+            socket.off('disconnect', handleDisconnect);
+            if (socket.connected) {
+                socket.emit('leave-room');
+            }
+            socket.disconnect();
+            if (socketRef.current === socket) {
+                socketRef.current = null;
+            }
+        };
+    }, [roomId, user?.name]);
     
     const toggleRecording = () => setRecording(!recording);
     
@@ -624,6 +666,7 @@ export default function LiveKitMeetingRoom() {
     return (
         <div className="meeting-container main-layout" style={containerStyle}>
             <div
+                className={`meeting-connection-banner ${showChat ? 'chat-active' : ''}`}
                 style={{
                     position: 'fixed',
                     top: '10px',
@@ -763,6 +806,7 @@ export default function LiveKitMeetingRoom() {
                         socket={socketRef.current} 
                         roomId={roomId} 
                         user={{ name: localParticipantLabel }} 
+                        socketConnected={chatSocketConnected}
                         closeChat={() => setShowChat(false)} 
                     />
                 </div>

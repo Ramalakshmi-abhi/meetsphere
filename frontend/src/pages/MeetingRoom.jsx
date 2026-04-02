@@ -1227,6 +1227,7 @@ export default function MeetingRoom() {
                     socket={socket} 
                     roomId={roomId} 
                     user={user || { name: 'Guest', email: '' }} 
+                    socketConnected={socketStatus === 'connected'}
                     closeChat={() => setShowChat(false)} 
                 />
             )}

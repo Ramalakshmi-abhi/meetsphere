@@ -358,6 +358,10 @@
     background: #dc2626;
 }
 
+.meeting-connection-banner {
+    transition: opacity 0.2s ease;
+}
+
 .gallery-nav {
     position: absolute;
     top: 50%;
@@ -886,6 +890,46 @@
     }
     .meeting-modal-actions {
         flex-direction: column;
+    }
+
+    .zoom-bottom-bar {
+        padding: 0.4rem 0.5rem;
+        gap: 0.35rem;
+        justify-content: flex-start;
+        overflow-x: auto;
+        overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .zoom-bottom-bar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .zoom-left,
+    .zoom-center,
+    .zoom-right {
+        flex: 0 0 auto;
+        gap: 0.25rem;
+    }
+
+    .zoom-center {
+        justify-content: flex-start;
+    }
+
+    .zoom-btn {
+        min-width: 68px;
+        padding: 0.35rem 0.4rem;
+        font-size: 0.68rem;
+    }
+
+    .zoom-end-btn {
+        padding: 0.5rem 0.75rem;
+        white-space: nowrap;
+    }
+
+    .meeting-connection-banner.chat-active {
+        display: none !important;
     }
 }
 /* Refined Email Invite Modal */
