@@ -96,6 +96,23 @@ const buildMailtoUrl = ({ subject = '', body = '', to = '' } = {}) => {
     return `mailto:${recipients}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 };
 
+const buildGmailComposeUrl = ({ subject = '', body = '', to = '' } = {}) => {
+    const params = new URLSearchParams({
+        view: 'cm',
+        fs: '1',
+        tf: '1',
+        su: subject,
+        body,
+    });
+
+    const recipients = normalizeInviteRecipients(to).join(',');
+    if (recipients) {
+        params.set('to', recipients);
+    }
+
+    return `https://mail.google.com/mail/?${params.toString()}`;
+};
+
 export const openMeetingEmailDraft = ({ title = 'Meeting', meetingId = '', passcode = '', startTime, to = '' } = {}) => {
     const { subject, body } = buildMeetingEmailDraft({ title, meetingId, passcode, startTime });
     const mailto = buildMailtoUrl({ subject, body, to });
@@ -119,4 +136,11 @@ export const openMeetingEmailDraft = ({ title = 'Meeting', meetingId = '', passc
             return false;
         }
     }
+};
+
+export const openMeetingGmailDraft = ({ title = 'Meeting', meetingId = '', passcode = '', startTime, to = '' } = {}) => {
+    const { subject, body } = buildMeetingEmailDraft({ title, meetingId, passcode, startTime });
+    const gmailUrl = buildGmailComposeUrl({ subject, body, to });
+    window.open(gmailUrl, '_blank', 'noopener,noreferrer');
+    return gmailUrl;
 };

@@ -998,6 +998,26 @@
     background: #22c05b;
 }
 
+.gmail-fallback-btn {
+    margin-top: 0.85rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: #93c5fd;
+    font-size: 0.86rem;
+    text-decoration: underline;
+    cursor: pointer;
+}
+
+.gmail-fallback-btn:hover {
+    color: #bfdbfe;
+}
+
+.gmail-fallback-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 .modal-footer {
     display: flex;
     justify-content: flex-end;

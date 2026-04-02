@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import io from 'socket.io-client';
 import ChatPanel from '../components/ChatPanel';
-import { buildMeetingInvite, openMeetingEmailDraft, openWhatsAppInvite } from '../utils/invite';
+import { buildMeetingInvite, openMeetingEmailDraft, openMeetingGmailDraft, openWhatsAppInvite } from '../utils/invite';
 import api, {
     LIVEKIT_URL,
     SOCKET_URL,
@@ -225,6 +225,14 @@ export default function LiveKitMeetingRoom() {
 
     const handleOpenMailApp = () => {
         openMeetingEmailDraft({
+            title: meetingTitle,
+            meetingId: roomId,
+            to: inviteEmails,
+        });
+    };
+
+    const handleOpenGmail = () => {
+        openMeetingGmailDraft({
             title: meetingTitle,
             meetingId: roomId,
             to: inviteEmails,
@@ -834,6 +842,14 @@ export default function LiveKitMeetingRoom() {
                                     <span>Share via WhatsApp</span>
                                 </button>
                             </div>
+                            <button
+                                type="button"
+                                className="gmail-fallback-btn"
+                                onClick={handleOpenGmail}
+                                disabled={isSendingInvite}
+                            >
+                                Mail app not opening? Open Gmail instead
+                            </button>
                         </div>
                         <footer className="modal-footer">
                             <button 

@@ -6,7 +6,7 @@ import Peer from 'simple-peer';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, ScreenShare, MoreVertical, MessageSquare, Users, Circle, X, Plus, Mail, UserPlus, BarChart2, MonitorUp, LayoutGrid, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ChatPanel from '../components/ChatPanel';
-import { buildMeetingInvite, openMeetingEmailDraft, openWhatsAppInvite } from '../utils/invite';
+import { buildMeetingInvite, openMeetingEmailDraft, openMeetingGmailDraft, openWhatsAppInvite } from '../utils/invite';
 import { describeMediaError, getMediaTrack, requestMediaStream, requestMediaTrack, stopMediaStream } from '../utils/media';
 import './MeetingRoom.css';
 import './ParticipantPanel.css';
@@ -854,6 +854,14 @@ export default function MeetingRoom() {
         });
     };
 
+    const shareViaGmail = () => {
+        openMeetingGmailDraft({
+            title: meetingTitle,
+            meetingId: roomId,
+            to: inviteEmails,
+        });
+    };
+
     const sendInviteEmails = async () => {
         const recipients = inviteEmails
             .split(',')
@@ -1170,6 +1178,14 @@ export default function MeetingRoom() {
                                     <span>Share via WhatsApp</span>
                                 </button>
                             </div>
+                            <button
+                                type="button"
+                                className="gmail-fallback-btn"
+                                onClick={shareViaGmail}
+                                disabled={sendingInvites}
+                            >
+                                Mail app not opening? Open Gmail instead
+                            </button>
                         </div>
                         <footer className="modal-footer">
                             <button 
