@@ -383,6 +383,7 @@ export default function LiveKitMeetingRoom() {
             adaptiveStream: true,
             dynacast: true,
             stopLocalTrackOnUnpublish: true,
+            disconnectOnPageLeave: false,
         });
 
         const updateRemoteParticipants = () => syncRemoteParticipants(nextRoom);

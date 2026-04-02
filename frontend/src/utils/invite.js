@@ -118,23 +118,28 @@ export const openMeetingEmailDraft = ({ title = 'Meeting', meetingId = '', passc
     const mailto = buildMailtoUrl({ subject, body, to });
 
     try {
-        // Use direct top-level navigation so browsers treat this as the button's user gesture.
-        window.location.assign(mailto);
-        return true;
-    } catch (error) {
-        console.error('Failed to open mail app via location navigation:', error);
-        try {
-            const anchor = document.createElement('a');
-            anchor.href = mailto;
-            anchor.style.display = 'none';
-            document.body.appendChild(anchor);
-            anchor.click();
-            document.body.removeChild(anchor);
+        // Open in a separate browsing context to avoid meeting-tab leave/disconnect side effects.
+        const popup = window.open(mailto, '_blank', 'noopener,noreferrer');
+        if (popup) {
             return true;
-        } catch (anchorError) {
-            console.error('Failed to open mail app via anchor click:', anchorError);
-            return false;
         }
+    } catch (popupError) {
+        console.error('Failed to open mail app via popup navigation:', popupError);
+    }
+
+    try {
+        const anchor = document.createElement('a');
+        anchor.href = mailto;
+        anchor.target = '_blank';
+        anchor.rel = 'noopener noreferrer';
+        anchor.style.display = 'none';
+        document.body.appendChild(anchor);
+        anchor.click();
+        document.body.removeChild(anchor);
+        return true;
+    } catch (anchorError) {
+        console.error('Failed to open mail app via anchor click:', anchorError);
+        return false;
     }
 };
 
