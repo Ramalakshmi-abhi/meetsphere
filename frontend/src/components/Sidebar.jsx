@@ -14,12 +14,13 @@ import {
     Monitor,
     CreditCard,
     LogOut,
-    MessageSquare
+    MessageSquare,
+    X
 } from 'lucide-react';
 import './Sidebar.css';
 import { useAuth } from '../context/AuthContext';
 
-const Sidebar = () => {
+const Sidebar = ({ isMobile = false, isOpen = true, onClose = () => {} }) => {
     const { logout } = useAuth();
 
     const menuItems = [
@@ -39,12 +40,29 @@ const Sidebar = () => {
         { icon: <Monitor size={20} />, label: 'Branded Conference', path: '/branded' },
     ];
 
+    const handleLogout = async () => {
+        await logout();
+        onClose();
+    };
+
     return (
-        <aside className="app-sidebar">
+        <aside className={`app-sidebar ${isOpen ? 'open' : ''}`}>
             <div className="sidebar-header">
-                <div className="sidebar-logo">
-                    <Video className="logo-icon" />
-                    <span>MeetSphere</span>
+                <div className="sidebar-header-row">
+                    <div className="sidebar-logo">
+                        <Video className="logo-icon" />
+                        <span>MeetSphere</span>
+                    </div>
+                    {isMobile && (
+                        <button
+                            type="button"
+                            className="sidebar-close-btn"
+                            aria-label="Close navigation menu"
+                            onClick={onClose}
+                        >
+                            <X size={18} />
+                        </button>
+                    )}
                 </div>
             </div>
             
@@ -54,6 +72,7 @@ const Sidebar = () => {
                         key={index} 
                         to={item.path} 
                         className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                        onClick={onClose}
                     >
                         <span className="nav-icon">{item.icon}</span>
                         <span className="nav-label">{item.label}</span>
@@ -62,7 +81,7 @@ const Sidebar = () => {
             </nav>
 
             <div className="sidebar-footer">
-                <button onClick={logout} className="logout-btn">
+                <button onClick={handleLogout} className="logout-btn">
                     <LogOut size={20} />
                     <span>Logout</span>
                 </button>
