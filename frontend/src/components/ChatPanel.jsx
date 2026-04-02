@@ -2,9 +2,17 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Send, X, ExternalLink, Paperclip, Copy, Smile, MoreHorizontal } from 'lucide-react';
 import './ChatPanel.css';
 
-export default function ChatPanel({ socket, roomId, user, closeChat, socketConnected }) {
+export default function ChatPanel({
+    socket,
+    roomId,
+    user,
+    closeChat,
+    socketConnected,
+    chatHistory: externalChatHistory,
+    onAppendMessage,
+}) {
     const [message, setMessage] = useState('');
-    const [chatHistory, setChatHistory] = useState([]);
+    const [localChatHistory, setLocalChatHistory] = useState([]);
     const [activeTab, setActiveTab] = useState('main');
     const [status, setStatus] = useState({ type: '', text: '' });
     const [isConnected, setIsConnected] = useState(Boolean(socketConnected ?? socket?.connected));
@@ -13,6 +21,8 @@ export default function ChatPanel({ socket, roomId, user, closeChat, socketConne
     const statusTimerRef = useRef(null);
 
     const senderName = String(user?.name || 'Guest').trim() || 'Guest';
+    const hasExternalHistory = Array.isArray(externalChatHistory);
+    const chatHistory = hasExternalHistory ? externalChatHistory : localChatHistory;
 
     const clearStatusTimer = () => {
         if (statusTimerRef.current) {
@@ -38,13 +48,20 @@ export default function ChatPanel({ socket, roomId, user, closeChat, socketConne
                 || `${incoming?.sender || 'user'}-${incoming?.time || Date.now()}-${incoming?.text || ''}`,
         };
 
-        setChatHistory((prev) => {
+        const updater = (prev) => {
             if (prev.some((entry) => entry.id === normalized.id)) {
                 return prev;
             }
             return [...prev, normalized];
-        });
-    }, []);
+        };
+
+        if (typeof onAppendMessage === 'function') {
+            onAppendMessage(normalized);
+            return;
+        }
+
+        setLocalChatHistory(updater);
+    }, [onAppendMessage]);
 
     useEffect(() => {
         if (!socket) {
@@ -54,20 +71,28 @@ export default function ChatPanel({ socket, roomId, user, closeChat, socketConne
 
         const handleConnect = () => setIsConnected(true);
         const handleDisconnect = () => setIsConnected(false);
-        const handleMessage = (data) => appendIncomingMessage(data);
 
         setIsConnected(Boolean(socketConnected ?? socket.connected));
 
         socket.on('connect', handleConnect);
         socket.on('disconnect', handleDisconnect);
-        socket.on('message-received', handleMessage);
+
+        if (!hasExternalHistory) {
+            const handleMessage = (data) => appendIncomingMessage(data);
+            socket.on('message-received', handleMessage);
+
+            return () => {
+                socket.off('connect', handleConnect);
+                socket.off('disconnect', handleDisconnect);
+                socket.off('message-received', handleMessage);
+            };
+        }
 
         return () => {
             socket.off('connect', handleConnect);
             socket.off('disconnect', handleDisconnect);
-            socket.off('message-received', handleMessage);
         };
-    }, [appendIncomingMessage, socket, socketConnected]);
+    }, [appendIncomingMessage, hasExternalHistory, socket, socketConnected]);
 
     useEffect(() => {
         setIsConnected(Boolean(socketConnected ?? socket?.connected));

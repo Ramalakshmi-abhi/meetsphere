@@ -195,9 +195,30 @@ export default function LiveKitMeetingRoom() {
     const [logoLoadFailed, setLogoLoadFailed] = useState(false);
     const [localTrackVersion, setLocalTrackVersion] = useState(0);
     const [chatSocketConnected, setChatSocketConnected] = useState(false);
+    const [chatMessages, setChatMessages] = useState([]);
 
     const roomRef = useRef(null);
     const socketRef = useRef(null);
+
+    const appendChatMessage = useCallback((incoming) => {
+        if (!incoming || typeof incoming !== 'object') {
+            return;
+        }
+
+        const normalized = {
+            ...incoming,
+            id: incoming.id
+                || incoming.messageId
+                || `${incoming.sender || 'user'}-${incoming.time || Date.now()}-${incoming.text || ''}`,
+        };
+
+        setChatMessages((prev) => {
+            if (prev.some((entry) => entry.id === normalized.id)) {
+                return prev;
+            }
+            return [...prev, normalized];
+        });
+    }, []);
 
     useEffect(() => {
         const socket = io(IS_LOCAL_DEV_HOST ? undefined : SOCKET_URL, {
@@ -229,8 +250,13 @@ export default function LiveKitMeetingRoom() {
             setChatSocketConnected(false);
         };
 
+        const handleChatMessage = (payload) => {
+            appendChatMessage(payload);
+        };
+
         socket.on('connect', handleConnect);
         socket.on('disconnect', handleDisconnect);
+        socket.on('message-received', handleChatMessage);
 
         if (socket.connected) {
             handleConnect();
@@ -239,6 +265,7 @@ export default function LiveKitMeetingRoom() {
         return () => {
             socket.off('connect', handleConnect);
             socket.off('disconnect', handleDisconnect);
+            socket.off('message-received', handleChatMessage);
             if (socket.connected) {
                 socket.emit('leave-room');
             }
@@ -247,7 +274,11 @@ export default function LiveKitMeetingRoom() {
                 socketRef.current = null;
             }
         };
-    }, [roomId, user?.name]);
+    }, [appendChatMessage, roomId, user?.name]);
+
+    useEffect(() => {
+        setChatMessages([]);
+    }, [roomId]);
     
     const toggleRecording = () => setRecording(!recording);
     
@@ -738,13 +769,13 @@ export default function LiveKitMeetingRoom() {
 
                 <footer className="zoom-bottom-bar">
                     <div className="zoom-left">
-                        <button onClick={toggleMicrophone} className={`zoom-btn ${!micOn ? 'danger' : ''}`}>
+                        <button onClick={toggleMicrophone} className={`zoom-btn control-mute ${!micOn ? 'danger' : ''}`}>
                             <div className="icon-wrapper">
                                 {micOn ? <Mic size={20} /> : <MicOff size={20} />}
                             </div>
                             <span>{micOn ? 'Mute' : 'Unmute'}</span>
                         </button>
-                        <button onClick={toggleCamera} className={`zoom-btn ${!videoOn ? 'danger' : ''}`}>
+                        <button onClick={toggleCamera} className={`zoom-btn control-video ${!videoOn ? 'danger' : ''}`}>
                             <div className="icon-wrapper">
                                 {videoOn ? <Video size={20} /> : <VideoOff size={20} />}
                             </div>
@@ -753,40 +784,40 @@ export default function LiveKitMeetingRoom() {
                     </div>
 
                     <div className="zoom-center">
-                        <button className="zoom-btn" onClick={openEmailInviteModal}>
+                        <button className="zoom-btn control-invite" onClick={openEmailInviteModal}>
                             <UserPlus size={22} />
                             <span>Invite</span>
                         </button>
-                        <button className="zoom-btn" onClick={() => { setShowParticipants(!showParticipants); setShowChat(false); }}>
+                        <button className="zoom-btn control-participants" onClick={() => { setShowParticipants(!showParticipants); setShowChat(false); }}>
                             <div className="icon-badge-container">
                                 <Users size={22} />
                                 <div className="badge">{participantCount}</div>
                             </div>
                             <span>Manage Participants</span>
                         </button>
-                        <button className="zoom-btn" onClick={() => setShowPollingModal(true)}>
+                        <button className="zoom-btn control-polling" onClick={() => setShowPollingModal(true)}>
                             <BarChart2 size={22} />
                             <span>Polling</span>
                         </button>
-                        <button className="zoom-btn share-btn" onClick={toggleScreenShare}>
+                        <button className="zoom-btn share-btn control-share" onClick={toggleScreenShare}>
                             <div className="share-icon-wrapper">
                                 <MonitorUp size={22} />
                             </div>
                             <span>Share Screen</span>
                         </button>
-                        <button className="zoom-btn" onClick={() => { setShowChat(!showChat); setShowParticipants(false); }}>
+                        <button className="zoom-btn control-chat" onClick={() => { setShowChat(!showChat); setShowParticipants(false); }}>
                             <MessageSquare size={22} />
                             <span>Chat</span>
                         </button>
-                        <button className="zoom-btn" onClick={toggleRecording}>
+                        <button className="zoom-btn control-record" onClick={toggleRecording}>
                             <Circle size={22} fill={recording ? '#ef4444' : 'none'} color={recording ? '#ef4444' : 'currentColor'} />
                             <span>Record</span>
                         </button>
-                        <button className="zoom-btn" onClick={() => setShowBreakoutModal(true)}>
+                        <button className="zoom-btn control-breakout" onClick={() => setShowBreakoutModal(true)}>
                             <LayoutGrid size={22} />
                             <span>Breakout Rooms</span>
                         </button>
-                        <button className="zoom-btn" onClick={() => setShowMoreMenu(!showMoreMenu)}>
+                        <button className="zoom-btn control-more" onClick={() => setShowMoreMenu(!showMoreMenu)}>
                             <MoreHorizontal size={22} />
                             <span>More</span>
                         </button>
@@ -807,6 +838,8 @@ export default function LiveKitMeetingRoom() {
                         roomId={roomId} 
                         user={{ name: localParticipantLabel }} 
                         socketConnected={chatSocketConnected}
+                        chatHistory={chatMessages}
+                        onAppendMessage={appendChatMessage}
                         closeChat={() => setShowChat(false)} 
                     />
                 </div>
@@ -907,6 +940,9 @@ export default function LiveKitMeetingRoom() {
                         <button onClick={openEmailInviteModal} className="btn-secondary">Email Invite</button>
                         <button onClick={() => { setShowParticipants(true); setShowMoreMenu(false); }} className="btn-secondary">View Participants</button>
                         <button onClick={() => { setShowChat(true); setShowMoreMenu(false); }} className="btn-secondary">Open Chat</button>
+                        <button onClick={() => { setShowPollingModal(true); setShowMoreMenu(false); }} className="btn-secondary">Open Polling</button>
+                        <button onClick={() => { toggleRecording(); setShowMoreMenu(false); }} className="btn-secondary">{recording ? 'Stop Recording' : 'Start Recording'}</button>
+                        <button onClick={() => { setShowBreakoutModal(true); setShowMoreMenu(false); }} className="btn-secondary">Breakout Rooms</button>
                     </div>
                 </div>
             )}
