@@ -53,7 +53,6 @@ export const buildMeetingInvite = ({ title = 'Meeting', meetingId = '', passcode
 
 export const buildMeetingEmailDraft = ({ title = 'Meeting', meetingId = '', passcode = '', startTime } = {}) => {
     const { url, dateString, timeString } = buildMeetingInvite({ title, meetingId, passcode, startTime });
-    const resolvedMeetingId = String(meetingId || passcode || '').trim();
     const bodyLines = [
         'You are invited to a MeetSphere meeting.',
         '',
@@ -74,4 +73,50 @@ export const buildMeetingEmailDraft = ({ title = 'Meeting', meetingId = '', pass
 
 export const openWhatsAppInvite = (text) => {
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
+};
+
+const normalizeInviteRecipients = (to = '') => {
+    if (Array.isArray(to)) {
+        return to
+            .flatMap((entry) => String(entry || '').split(/[;,]/))
+            .map((entry) => entry.trim())
+            .filter(Boolean);
+    }
+
+    return String(to || '')
+        .split(/[;,]/)
+        .map((entry) => entry.trim())
+        .filter(Boolean);
+};
+
+const buildMailtoUrl = ({ subject = '', body = '', to = '' } = {}) => {
+    const recipients = normalizeInviteRecipients(to)
+        .map((email) => encodeURIComponent(email))
+        .join(',');
+    return `mailto:${recipients}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+};
+
+export const openMeetingEmailDraft = ({ title = 'Meeting', meetingId = '', passcode = '', startTime, to = '' } = {}) => {
+    const { subject, body } = buildMeetingEmailDraft({ title, meetingId, passcode, startTime });
+    const mailto = buildMailtoUrl({ subject, body, to });
+
+    try {
+        // Use direct top-level navigation so browsers treat this as the button's user gesture.
+        window.location.assign(mailto);
+        return true;
+    } catch (error) {
+        console.error('Failed to open mail app via location navigation:', error);
+        try {
+            const anchor = document.createElement('a');
+            anchor.href = mailto;
+            anchor.style.display = 'none';
+            document.body.appendChild(anchor);
+            anchor.click();
+            document.body.removeChild(anchor);
+            return true;
+        } catch (anchorError) {
+            console.error('Failed to open mail app via anchor click:', anchorError);
+            return false;
+        }
+    }
 };

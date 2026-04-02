@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import io from 'socket.io-client';
 import ChatPanel from '../components/ChatPanel';
-import { buildMeetingEmailDraft, buildMeetingInvite, openWhatsAppInvite } from '../utils/invite';
+import { buildMeetingInvite, openMeetingEmailDraft, openWhatsAppInvite } from '../utils/invite';
 import api, {
     LIVEKIT_URL,
     SOCKET_URL,
@@ -224,24 +224,11 @@ export default function LiveKitMeetingRoom() {
     };
 
     const handleOpenMailApp = () => {
-        // Drastically simple mailto to rule out length issues
-        const url = getMeetingUrl(roomId);
-        const mailto = `mailto:?subject=Join%20Meeting&body=Join%20the%20MeetSphere%20meeting%20at%3A%20${encodeURIComponent(url)}`;
-        
-        console.log('Iframe Protocol Attempt:', mailto);
-        
-        // Trigger via hidden iframe to avoid 'page leave' detection
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        document.body.appendChild(iframe);
-        iframe.src = mailto;
-        
-        // Cleanup
-        setTimeout(() => {
-            if (document.body.contains(iframe)) {
-                document.body.removeChild(iframe);
-            }
-        }, 1000);
+        openMeetingEmailDraft({
+            title: meetingTitle,
+            meetingId: roomId,
+            to: inviteEmails,
+        });
     };
 
     const copyToClipboard = () => {

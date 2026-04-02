@@ -6,7 +6,7 @@ import Peer from 'simple-peer';
 import { Mic, MicOff, Video, VideoOff, PhoneOff, ScreenShare, MoreVertical, MessageSquare, Users, Circle, X, Plus, Mail, UserPlus, BarChart2, MonitorUp, LayoutGrid, MoreHorizontal, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ChatPanel from '../components/ChatPanel';
-import { buildMeetingEmailDraft, buildMeetingInvite, openWhatsAppInvite } from '../utils/invite';
+import { buildMeetingInvite, openMeetingEmailDraft, openWhatsAppInvite } from '../utils/invite';
 import { describeMediaError, getMediaTrack, requestMediaStream, requestMediaTrack, stopMediaStream } from '../utils/media';
 import './MeetingRoom.css';
 import './ParticipantPanel.css';
@@ -681,16 +681,40 @@ export default function MeetingRoom() {
         }
     };
 
-    const shareScreen = () => {
+    const shareScreen = async () => {
         if (!stream || stream.getVideoTracks().length === 0) {
             alert("Your camera must be allowed and active before you can share your screen.");
             return;
         }
 
         if (!screenStream) {
-            navigator.mediaDevices.getDisplayMedia({ cursor: true }).then(screenStream => {
-                const screenTrack = screenStream.getVideoTracks()[0];
-                
+            try {
+                const selectedScreenStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: {
+                        cursor: 'always',
+                        selfBrowserSurface: 'exclude',
+                        surfaceSwitching: 'include',
+                    },
+                    audio: false,
+                });
+
+                const screenTrack = selectedScreenStream.getVideoTracks()[0];
+                if (!screenTrack) {
+                    stopMediaStream(selectedScreenStream);
+                    return;
+                }
+
+                const displaySurface = screenTrack.getSettings?.().displaySurface;
+                if (displaySurface === 'browser') {
+                    const shouldContinue = window.confirm(
+                        'You selected a browser tab. If you choose this same MeetSphere tab, you will see an infinite mirror effect. Continue anyway?'
+                    );
+                    if (!shouldContinue) {
+                        stopMediaStream(selectedScreenStream);
+                        return;
+                    }
+                }
+
                 peersRef.current.forEach(({ peer }) => {
                     peer.replaceTrack(
                         stream.getVideoTracks()[0],
@@ -710,10 +734,10 @@ export default function MeetingRoom() {
                     setScreenStream(null);
                 };
 
-                setScreenStream(screenStream);
-            }).catch(err => {
+                setScreenStream(selectedScreenStream);
+            } catch (err) {
                 console.error("Screen share error:", err);
-            });
+            }
         } else {
             screenStream.getTracks().forEach(track => track.stop());
             peersRef.current.forEach(({ peer }) => {
@@ -823,24 +847,11 @@ export default function MeetingRoom() {
     };
 
     const shareViaEmail = () => {
-        // Drastically simple mailto to rule out length issues
-        const url = getMeetingUrl(roomId);
-        const mailto = `mailto:?subject=Join%20Meeting&body=Join%20the%20MeetSphere%20meeting%20at%3A%20${encodeURIComponent(url)}`;
-        
-        console.log('Iframe Protocol Attempt:', mailto);
-        
-        // Trigger via hidden iframe to avoid 'page leave' detection
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        document.body.appendChild(iframe);
-        iframe.src = mailto;
-        
-        // Cleanup
-        setTimeout(() => {
-            if (document.body.contains(iframe)) {
-                document.body.removeChild(iframe);
-            }
-        }, 1000);
+        openMeetingEmailDraft({
+            title: meetingTitle,
+            meetingId: roomId,
+            to: inviteEmails,
+        });
     };
 
     const sendInviteEmails = async () => {
