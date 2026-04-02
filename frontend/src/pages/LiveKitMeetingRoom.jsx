@@ -199,6 +199,9 @@ export default function LiveKitMeetingRoom() {
 
     const roomRef = useRef(null);
     const socketRef = useRef(null);
+    const mediaRecorderRef = useRef(null);
+    const recordedChunksRef = useRef([]);
+    const recordingStreamRef = useRef(null);
 
     const appendChatMessage = useCallback((incoming) => {
         if (!incoming || typeof incoming !== 'object') {
@@ -279,8 +282,212 @@ export default function LiveKitMeetingRoom() {
     useEffect(() => {
         setChatMessages([]);
     }, [roomId]);
-    
-    const toggleRecording = () => setRecording(!recording);
+
+    const stopRecordingStream = useCallback(() => {
+        if (!recordingStreamRef.current) {
+            return;
+        }
+
+        recordingStreamRef.current.getTracks().forEach((track) => {
+            track.stop();
+        });
+        recordingStreamRef.current = null;
+    }, []);
+
+    const getPublicationMediaTrack = useCallback((publication) => {
+        if (!publication) {
+            return null;
+        }
+
+        const candidateTrack = publication.track || publication.videoTrack || publication.audioTrack || null;
+        const mediaTrack = candidateTrack?.mediaStreamTrack || publication.mediaStreamTrack || null;
+
+        if (mediaTrack) {
+            return mediaTrack;
+        }
+
+        if (candidateTrack?.kind) {
+            return candidateTrack;
+        }
+
+        return null;
+    }, []);
+
+    const createRecordingStream = useCallback((activeRoom = roomRef.current) => {
+        const localParticipant = activeRoom?.localParticipant;
+        if (!localParticipant) {
+            return null;
+        }
+
+        const captureStream = new MediaStream();
+        const videoPublication = getPrimaryVideoPublication(localParticipant);
+        const audioPublication = getPrimaryAudioPublication(localParticipant);
+        const selectedTracks = [
+            getPublicationMediaTrack(videoPublication),
+            getPublicationMediaTrack(audioPublication),
+        ].filter(Boolean);
+
+        selectedTracks.forEach((track) => {
+            try {
+                const clonedTrack = typeof track.clone === 'function' ? track.clone() : track;
+                captureStream.addTrack(clonedTrack);
+            } catch (error) {
+                console.error('Failed to clone local media track for recording:', error);
+            }
+        });
+
+        if (captureStream.getTracks().length === 0) {
+            return null;
+        }
+
+        return captureStream;
+    }, [getPublicationMediaTrack]);
+
+    const getSupportedRecordingMimeType = useCallback(() => {
+        if (typeof MediaRecorder === 'undefined') {
+            return '';
+        }
+
+        const preferredMimeTypes = [
+            'video/webm;codecs=vp9,opus',
+            'video/webm;codecs=vp8,opus',
+            'video/webm',
+        ];
+
+        return preferredMimeTypes.find((type) => MediaRecorder.isTypeSupported(type)) || '';
+    }, []);
+
+    const downloadRecordingLocally = useCallback((blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.style.display = 'none';
+        anchor.href = url;
+        anchor.download = `meeting-recording-${roomId}.webm`;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        window.URL.revokeObjectURL(url);
+    }, [roomId]);
+
+    const stopRecording = useCallback(() => {
+        const recorder = mediaRecorderRef.current;
+        if (!recorder) {
+            setRecording(false);
+            stopRecordingStream();
+            return;
+        }
+
+        if (recorder.state !== 'inactive') {
+            try {
+                recorder.stop();
+            } catch (error) {
+                console.error('Failed to stop recording cleanly:', error);
+                setRecording(false);
+                stopRecordingStream();
+                mediaRecorderRef.current = null;
+            }
+            return;
+        }
+
+        setRecording(false);
+        stopRecordingStream();
+        mediaRecorderRef.current = null;
+    }, [stopRecordingStream]);
+
+    const toggleRecording = useCallback(() => {
+        if (recording) {
+            stopRecording();
+            return;
+        }
+
+        if (!roomRef.current?.localParticipant) {
+            alert('Join the meeting before starting a recording.');
+            return;
+        }
+
+        if (typeof MediaRecorder === 'undefined') {
+            alert('Recording is not supported in this browser.');
+            return;
+        }
+
+        const captureStream = createRecordingStream(roomRef.current);
+        if (!captureStream) {
+            alert('Turn on your mic/camera (or screen share) before recording.');
+            return;
+        }
+
+        const mimeType = getSupportedRecordingMimeType();
+        const recorderOptions = mimeType ? { mimeType } : undefined;
+        let recorder;
+
+        try {
+            recorder = recorderOptions
+                ? new MediaRecorder(captureStream, recorderOptions)
+                : new MediaRecorder(captureStream);
+        } catch (error) {
+            console.error('Unable to start MediaRecorder:', error);
+            stopRecordingStream();
+            alert('Unable to start recording on this browser/device.');
+            return;
+        }
+
+        recordingStreamRef.current = captureStream;
+        recordedChunksRef.current = [];
+        mediaRecorderRef.current = recorder;
+
+        recorder.ondataavailable = (event) => {
+            if (event.data && event.data.size > 0) {
+                recordedChunksRef.current.push(event.data);
+            }
+        };
+
+        recorder.onerror = (event) => {
+            console.error('Recording runtime error:', event);
+            setJoinError('Recording stopped unexpectedly due to a browser error.');
+            stopRecording();
+        };
+
+        recorder.onstop = async () => {
+            const chunks = recordedChunksRef.current;
+            recordedChunksRef.current = [];
+            mediaRecorderRef.current = null;
+            setRecording(false);
+            stopRecordingStream();
+
+            if (!chunks.length) {
+                return;
+            }
+
+            const blob = new Blob(chunks, { type: mimeType || 'video/webm' });
+            const formData = new FormData();
+            formData.append('recording', blob, `meeting-${roomId}.webm`);
+
+            try {
+                await api.post(`/api/meeting/${roomId}/recording`, formData, {
+                    headers: {
+                        'Content-Type': 'multipart/form-data',
+                    },
+                });
+                alert('Recording successfully saved to the cloud!');
+            } catch (error) {
+                console.error('Failed to upload recording:', error);
+                alert('Could not save this recording to the cloud. Downloading locally instead.');
+                downloadRecordingLocally(blob);
+            }
+        };
+
+        recorder.start(1000);
+        setRecording(true);
+        setJoinError('');
+    }, [
+        createRecordingStream,
+        downloadRecordingLocally,
+        getSupportedRecordingMimeType,
+        recording,
+        roomId,
+        stopRecording,
+        stopRecordingStream,
+    ]);
     
     const openEmailInviteModal = () => {
         setInviteError('');
@@ -406,14 +613,16 @@ export default function LiveKitMeetingRoom() {
     }, [meetingTitle]);
 
     useEffect(() => () => {
+        stopRecording();
         const activeRoom = roomRef.current;
         roomRef.current = null;
         if (activeRoom) {
             activeRoom.disconnect(true).catch(() => {});
         }
-    }, []);
+    }, [stopRecording]);
 
     const leaveMeeting = useCallback(async () => {
+        stopRecording();
         const activeRoom = roomRef.current;
         roomRef.current = null;
 
@@ -432,7 +641,7 @@ export default function LiveKitMeetingRoom() {
         setShowParticipants(false);
 
         navigate(user ? '/dashboard' : '/login');
-    }, [navigate, user]);
+    }, [navigate, stopRecording, user]);
 
     const joinMeetingRoom = async () => {
         const requestedName = String(user?.name || tempGuestName || '').trim();
